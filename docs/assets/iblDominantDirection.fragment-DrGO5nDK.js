@@ -1,1 +1,0 @@
-import{_ as e}from"./index-CJNnVcHn.js";export{e as iblDominantDirectionPixelShaderWGSL};

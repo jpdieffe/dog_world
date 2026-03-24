@@ -1,1 +1,0 @@
-import{Gn as e}from"./index-CJNnVcHn.js";export{e as colorVertexShader};

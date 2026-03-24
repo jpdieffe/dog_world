@@ -1,0 +1,1 @@
+import{Xn as e}from"./index-CjSJmJwE.js";export{e as backgroundVertexShaderWGSL};

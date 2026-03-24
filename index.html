@@ -49,6 +49,37 @@
       letter-spacing: 0.03em;
     }
 
+    /* ── Lobby overlay ── */
+    #lobby {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 5, 20, 0.88);
+      backdrop-filter: blur(4px);
+      z-index: 50;
+      gap: 1.2rem;
+      font-family: system-ui, sans-serif;
+      color: #cdf;
+    }
+    #lobby h1 { font-size: 2.4rem; letter-spacing: 0.06em; }
+    #lobby p  { font-size: 0.9rem; opacity: 0.6; }
+    #playBtn {
+      padding: 0.7rem 2.6rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border: 2px solid #6af;
+      border-radius: 8px;
+      background: rgba(60, 120, 255, 0.18);
+      color: #9df;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 0.15s;
+    }
+    #playBtn:hover { background: rgba(60, 120, 255, 0.35); }
+
     /* ── Screen-center crosshair ── */
     #crosshair {
       position: fixed;
@@ -85,6 +116,13 @@
 </head>
 <body>
   <canvas id="renderCanvas" tabindex="0"></canvas>
+
+  <!-- Lobby / click to play -->
+  <div id="lobby">
+    <h1>🦊 Dog World</h1>
+    <button id="playBtn">Play</button>
+    <p>WASD move &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Left-drag camera &nbsp;·&nbsp; Right-click dig</p>
+  </div>
 
   <!-- Screen crosshair -->
   <div id="crosshair"></div>

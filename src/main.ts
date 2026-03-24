@@ -164,8 +164,13 @@ async function startGame() {
   window.addEventListener('resize', () => engine!.resize())
 }
 
-// Defer until all page resources are loaded (matches life_of_squirrel button-click timing)
-window.addEventListener('load', () => {
+// Start only after a user gesture (button click) — mirrors life_of_squirrel pattern
+// which fixes browsers that refuse WebGL without interaction
+const playBtn = document.getElementById('playBtn')!
+const lobbyEl = document.getElementById('lobby')!
+
+playBtn.addEventListener('click', () => {
+  lobbyEl.style.display = 'none'
   startGame().catch(err => {
     const msg = err instanceof Error ? err.message : String(err)
     showStatus(`Startup failed:\n${msg}`, true)
