@@ -1,0 +1,1 @@
+import{jn as e}from"./index-EIMkuokN.js";export{e as defaultVertexShader};

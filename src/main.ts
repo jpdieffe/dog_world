@@ -43,8 +43,19 @@ function hideStatus(): void {
 async function startGame() {
   showStatus('Starting engine…')
 
-  // Do NOT manually resize the canvas — let CSS control it.
-  // Babylon reads clientWidth/Height internally.
+  // Test WebGL availability on a FRESH canvas BEFORE Babylon touches anything.
+  // Babylon's failed constructor attempts can taint the page canvas.
+  const testCanvas = document.createElement('canvas')
+  testCanvas.width = 100; testCanvas.height = 100
+  const testCtx = testCanvas.getContext('webgl2') ?? testCanvas.getContext('webgl')
+  if (!testCtx) {
+    showStatus(
+      `Your browser is blocking WebGL.\n\nUA: ${navigator.userAgent.slice(0, 120)}\n\nFix: In Chrome go to:\n  Settings → System → "Use hardware acceleration when available" → ON\n  Then restart Chrome.`,
+      true,
+    )
+    return
+  }
+  console.log('Fresh canvas WebGL OK:', testCtx.constructor.name)
 
   // Try WebGL2, fall back to WebGL1
   let engine: Engine | undefined
@@ -64,10 +75,8 @@ async function startGame() {
 
   if (!engine) {
     const errMsg = lastErr instanceof Error ? lastErr.message : String(lastErr)
-    // Direct test — bypasses Babylon
-    const directCtx = canvas.getContext('webgl2') ?? canvas.getContext('webgl')
     showStatus(
-      `WebGL failed to start.\n\nError: ${errMsg}\n\ndirectContext: ${directCtx ? 'OK' : 'null'}\nclientSize: ${canvas.clientWidth}×${canvas.clientHeight}`,
+      `Babylon engine failed (WebGL works, but Babylon threw).\n\nError: ${errMsg}\n\nUA: ${navigator.userAgent.slice(0, 120)}`,
       true,
     )
     return

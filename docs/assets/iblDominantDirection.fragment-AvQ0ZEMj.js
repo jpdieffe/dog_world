@@ -1,1 +1,0 @@
-import{g as e}from"./index-CjSJmJwE.js";export{e as iblDominantDirectionPixelShader};

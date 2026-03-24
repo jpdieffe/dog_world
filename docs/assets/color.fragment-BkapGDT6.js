@@ -1,0 +1,1 @@
+import{Kn as e}from"./index-EIMkuokN.js";export{e as colorPixelShader};
