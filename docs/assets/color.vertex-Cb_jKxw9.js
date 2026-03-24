@@ -1,1 +1,0 @@
-import{Gn as e}from"./index-BJlLPuCE.js";export{e as colorVertexShader};

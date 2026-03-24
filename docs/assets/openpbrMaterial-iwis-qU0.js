@@ -1,1 +1,0 @@
-import{Un as e}from"./index-BJlLPuCE.js";export{e as OpenPBRMaterial};

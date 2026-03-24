@@ -1,1 +1,0 @@
-import{Pt as e}from"./index-BJlLPuCE.js";export{e as extractHighlightsPixelShaderWGSL};

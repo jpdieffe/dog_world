@@ -43,11 +43,18 @@ function hideStatus(): void {
 async function startGame() {
   showStatus('Starting engine…')
 
-  canvas.width  = canvas.clientWidth  || window.innerWidth
-  canvas.height = canvas.clientHeight || window.innerHeight
+  // Wait one frame so the browser has laid out the page and canvas has real dimensions
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+
+  canvas.width  = Math.max(canvas.clientWidth  || window.innerWidth,  100)
+  canvas.height = Math.max(canvas.clientHeight || window.innerHeight, 100)
+
+  console.log(`Canvas: ${canvas.width}×${canvas.height}, client: ${canvas.clientWidth}×${canvas.clientHeight}`)
+  showStatus(`Starting engine… (canvas ${canvas.width}×${canvas.height})`)
 
   // Try WebGL2, fall back to WebGL1
   let engine: Engine | undefined
+  let lastErr: unknown
   for (const noWebGL2 of [false, true]) {
     try {
       engine = new Engine(canvas, true, {
@@ -56,12 +63,15 @@ async function startGame() {
         disableWebGL2Support: noWebGL2,
       })
       break
-    } catch { /* try next */ }
+    } catch (e) {
+      lastErr = e
+    }
   }
 
   if (!engine) {
+    const errMsg = lastErr instanceof Error ? lastErr.message : String(lastErr)
     showStatus(
-      'WebGL failed to start.\n\nTry:\n• Enable hardware acceleration in browser settings\n• Update graphics drivers\n• Try a different browser',
+      `WebGL failed to start.\n\nError: ${errMsg}\n\ncanvas size: ${canvas.width}×${canvas.height}\nclientSize: ${canvas.clientWidth}×${canvas.clientHeight}`,
       true,
     )
     return
