@@ -1,0 +1,1 @@
+import{Yn as e}from"./index-BJlLPuCE.js";export{e as backgroundPixelShaderWGSL};

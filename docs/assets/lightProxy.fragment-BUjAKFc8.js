@@ -1,0 +1,1 @@
+import{er as e}from"./index-BJlLPuCE.js";export{e as lightProxyPixelShader};

@@ -1,1 +1,0 @@
-import{$n as e}from"./index-CZkA2_Ml.js";export{e as lightProxyVertexShader};
