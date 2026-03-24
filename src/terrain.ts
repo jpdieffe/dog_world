@@ -11,24 +11,21 @@ import { marchingCubes } from './marching-cubes'
 
 // ── Terrain configuration ──────────────────────────────────────────────────────
 /** Number of density samples per chunk along each axis */
-const CHUNK_SAMPLES = 24
+const CHUNK_SAMPLES = 16
 /** World-space size of each chunk (metres) */
 const CHUNK_SIZE = 16
 /** Cell size (world units per density sample) */
 const CELL_SIZE = CHUNK_SIZE / (CHUNK_SAMPLES - 1)
 /** How many chunks along each horizontal axis  (total area = GRID × CHUNK_SIZE) */
-const GRID = 8
-/** Vertical samples  — enough for ~10m below ground + ~6m above */
-const VERT_SAMPLES = 24
-/** Y offset so the surface sits near y = 0  (top of density grid in world space) */
-const Y_OFFSET = -CHUNK_SIZE * 0.6
+const GRID = 4
+/** Vertical samples  — enough for ~10m below ground + ~4m above */
+const VERT_SAMPLES = 16
+/** Y offset: grid starts at this Y, surface should be near y=0 */
+const Y_OFFSET = -10
 /** Dig radius in world units */
 const DIG_RADIUS = 2.0
 /** Dig strength (how much density is removed per click) */
 const DIG_STRENGTH = 1.5
-
-/** Ground surface Y in density-grid space (mapped to world y ≈ 0) */
-const SURFACE_GRID_Y = Math.round((-Y_OFFSET) / CELL_SIZE)
 
 export class Terrain {
   private scene: Scene

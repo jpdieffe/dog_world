@@ -1,0 +1,1 @@
+import{Un as e}from"./index-CZkA2_Ml.js";export{e as OpenPBRMaterial};

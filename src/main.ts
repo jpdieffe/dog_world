@@ -13,21 +13,11 @@ import { Player } from './player'
 const canvas = document.getElementById('renderCanvas') as HTMLCanvasElement
 
 async function startGame() {
-  let engine: Engine | undefined
-  for (const noWebGL2 of [false, true]) {
-    try {
-      engine = new Engine(canvas, true, {
-        preserveDrawingBuffer: true,
-        stencil: true,
-        disableWebGL2Support: noWebGL2,
-      })
-      break
-    } catch { /* try next */ }
-  }
-  if (!engine) {
-    document.body.innerHTML = '<p style="color:#fff;padding:2rem">WebGL failed to start.</p>'
-    return
-  }
+  // Ensure canvas has actual pixel dimensions before creating the engine
+  canvas.width = canvas.clientWidth || window.innerWidth
+  canvas.height = canvas.clientHeight || window.innerHeight
+
+  const engine = new Engine(canvas, true)
 
   const scene = new Scene(engine)
   scene.clearColor = new Color4(0.55, 0.78, 0.96, 1.0) // sky blue
@@ -41,19 +31,23 @@ async function startGame() {
   sun.position = new Vector3(30, 60, 30)
 
   // ── Terrain ───────────────────────────────────────────────────────────────
+  console.log('Creating terrain...')
   const terrain = new Terrain(scene)
+  console.log('Terrain created.')
 
   // ── Player ────────────────────────────────────────────────────────────────
   const player = new Player(scene, terrain)
 
-  // ── Dig on click ──────────────────────────────────────────────────────────
+  // ── Dig on click (right-click so left-click is for camera rotation) ───────
   let digging = false
   canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 0) digging = true
+    if (e.button === 2) digging = true   // right click to dig
   })
   canvas.addEventListener('mouseup', (e) => {
-    if (e.button === 0) digging = false
+    if (e.button === 2) digging = false
   })
+  // Prevent context menu on right-click
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
   // Dig timer: allow continuous digging while holding the button
   let digCooldown = 0
@@ -61,7 +55,7 @@ async function startGame() {
 
   // ── Render loop ───────────────────────────────────────────────────────────
   engine.runRenderLoop(() => {
-    const dt = Math.min(engine!.getDeltaTime() / 1000, 0.05)
+    const dt = Math.min(engine.getDeltaTime() / 1000, 0.05)
 
     player.update(dt)
 
@@ -82,7 +76,6 @@ async function startGame() {
           const pt = hit.pickedPoint
           const normal = hit.getNormal(true)
           if (normal) {
-            // Push dig centre slightly into the surface for better tunnel feel
             pt.addInPlace(normal.scale(-0.3))
           }
           terrain.dig(pt.x, pt.y, pt.z)
@@ -96,14 +89,7 @@ async function startGame() {
   })
 
   // Handle window resize
-  window.addEventListener('resize', () => engine!.resize())
-
-  // ── Pointer lock on click ─────────────────────────────────────────────────
-  canvas.addEventListener('click', () => {
-    if (document.pointerLockElement !== canvas) {
-      canvas.requestPointerLock()
-    }
-  })
+  window.addEventListener('resize', () => engine.resize())
 }
 
-startGame()
+startGame().catch(err => console.error('Game failed to start:', err))

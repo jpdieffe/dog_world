@@ -7,9 +7,6 @@ import {
   TransformNode,
   AbstractMesh,
   AnimationGroup,
-  StandardMaterial,
-  Color3,
-  MeshBuilder,
   Mesh,
 } from '@babylonjs/core'
 import type { Terrain } from './terrain'
@@ -23,7 +20,7 @@ const PLAYER_RADIUS = 0.4
 const TERMINAL_VEL  = -30
 const FOX_SCALE     = 1.8
 
-const SPAWN = new Vector3(0, 2, 0)
+const SPAWN = new Vector3(0, 4, 0)
 
 type AnimState = 'idle' | 'run' | 'jump' | 'fall'
 
@@ -65,7 +62,6 @@ export class Player {
 
   // Input state
   private keys = new Set<string>()
-  private pointerLocked = false
 
   // Model
   private modelRoot: TransformNode | null = null
@@ -73,25 +69,24 @@ export class Player {
   private currentAnim: AnimState = 'idle'
   private animsLoaded = false
 
-  // Crosshair
-  private crosshair!: Mesh
-
   constructor(scene: Scene, terrain: Terrain) {
     this.scene = scene
     this.terrain = terrain
     this.setupCamera()
     this.setupInput()
     this.loadModel()
-    this.createCrosshair()
   }
 
   // ── Camera ───────────────────────────────────────────────────────────────────
   private setupCamera(): void {
+    // ArcRotateCamera orbits the player — uses LEFT mouse drag to rotate (no pointer lock needed)
     const cam = new ArcRotateCamera('cam', -Math.PI / 2, 1.0, 14, SPAWN.clone(), this.scene)
     cam.lowerRadiusLimit = 4
     cam.upperRadiusLimit = 28
-    cam.lowerBetaLimit = 0.01
-    cam.upperBetaLimit = Math.PI * 0.425
+    cam.lowerBetaLimit = 0.2
+    cam.upperBetaLimit = Math.PI * 0.45
+
+    // Disable panning (middle mouse) and keyboard
     cam.panningSensibility = 0
     cam.inputs.removeByType('ArcRotateCameraKeyboardMoveInput')
 
@@ -102,31 +97,12 @@ export class Player {
 
   // ── Input ────────────────────────────────────────────────────────────────────
   private setupInput(): void {
-    const canvas = this.scene.getEngine().getRenderingCanvas()!
-
-    canvas.addEventListener('click', () => {
-      if (!this.pointerLocked) canvas.requestPointerLock()
-    })
-
-    document.addEventListener('pointerlockchange', () => {
-      this.pointerLocked = document.pointerLockElement === canvas
-    })
-
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.key.toLowerCase())
     })
 
     window.addEventListener('keyup', (e) => {
       this.keys.delete(e.key.toLowerCase())
-    })
-
-    // Scroll wheel → zoom
-    canvas.addEventListener('wheel', (e: WheelEvent) => {
-      this.camera.radius += e.deltaY * 0.01
-      this.camera.radius = Math.max(
-        this.camera.lowerRadiusLimit!,
-        Math.min(this.camera.upperRadiusLimit!, this.camera.radius),
-      )
     })
   }
 
@@ -183,22 +159,6 @@ export class Player {
       next.group?.start(next.group.loopAnimation, 1.0, next.group.from, next.group.to, false)
     }
     this.currentAnim = a
-  }
-
-  // ── Crosshair ────────────────────────────────────────────────────────────────
-  private createCrosshair(): void {
-    const ch = MeshBuilder.CreateTorus('crosshair', {
-      diameter: 0.5,
-      thickness: 0.04,
-      tessellation: 24,
-    }, this.scene)
-    const mat = new StandardMaterial('chMat', this.scene)
-    mat.diffuseColor = new Color3(1, 1, 1)
-    mat.emissiveColor = new Color3(0.8, 0.8, 0.8)
-    mat.alpha = 0.6
-    ch.material = mat
-    ch.isPickable = false
-    this.crosshair = ch
   }
 
   // ── Update (call each frame) ─────────────────────────────────────────────────
@@ -287,33 +247,6 @@ export class Player {
     // ── Camera target follows player ───────────────────────────────────────
     const headY = this.position.y + PLAYER_HEIGHT * 0.8
     this.camera.target.set(this.position.x, headY, this.position.z)
-
-    // ── Update crosshair (project forward from camera) ─────────────────────
-    this.updateCrosshair()
-  }
-
-  // ── Crosshair / aim point ────────────────────────────────────────────────
-  private updateCrosshair(): void {
-    const cam = this.camera
-    // Aim direction from camera through centre of screen
-    const dir = cam.target.subtract(cam.position).normalize()
-
-    // Project the crosshair a fixed distance ahead
-    const dist = 6
-    const pt = cam.target.add(dir.scale(dist))
-
-    // Snap crosshair to terrain surface if it would be underground
-    const surfY = this.terrain.getSurfaceY(pt.x, pt.z)
-    if (pt.y < surfY + 0.1) pt.y = surfY + 0.1
-
-    this.crosshair.position.copyFrom(pt)
-    // Orient crosshair to face camera
-    this.crosshair.lookAt(cam.position)
-  }
-
-  /** Get the aim point in world space (where to dig) */
-  getAimPoint(): Vector3 {
-    return this.crosshair.position.clone()
   }
 
   /** Get current position (for external use) */

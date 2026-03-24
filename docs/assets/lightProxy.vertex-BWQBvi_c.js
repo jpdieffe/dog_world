@@ -1,0 +1,1 @@
+import{Zn as e}from"./index-CZkA2_Ml.js";export{e as lightProxyVertexShaderWGSL};
