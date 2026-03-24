@@ -297,7 +297,6 @@ export class Player {
     const cam = this.camera
     // Aim direction from camera through centre of screen
     const dir = cam.target.subtract(cam.position).normalize()
-    const ray = new (Vector3 as any).constructor(0, 0, 0)
 
     // Project the crosshair a fixed distance ahead
     const dist = 6
