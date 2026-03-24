@@ -1,0 +1,1 @@
+import{Ot as e}from"./index-CJNnVcHn.js";export{e as blackAndWhitePixelShaderWGSL};

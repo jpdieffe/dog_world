@@ -43,14 +43,8 @@ function hideStatus(): void {
 async function startGame() {
   showStatus('Starting engine…')
 
-  // Wait one frame so the browser has laid out the page and canvas has real dimensions
-  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-
-  canvas.width  = Math.max(canvas.clientWidth  || window.innerWidth,  100)
-  canvas.height = Math.max(canvas.clientHeight || window.innerHeight, 100)
-
-  console.log(`Canvas: ${canvas.width}×${canvas.height}, client: ${canvas.clientWidth}×${canvas.clientHeight}`)
-  showStatus(`Starting engine… (canvas ${canvas.width}×${canvas.height})`)
+  // Do NOT manually resize the canvas — let CSS control it.
+  // Babylon reads clientWidth/Height internally.
 
   // Try WebGL2, fall back to WebGL1
   let engine: Engine | undefined
@@ -70,8 +64,10 @@ async function startGame() {
 
   if (!engine) {
     const errMsg = lastErr instanceof Error ? lastErr.message : String(lastErr)
+    // Direct test — bypasses Babylon
+    const directCtx = canvas.getContext('webgl2') ?? canvas.getContext('webgl')
     showStatus(
-      `WebGL failed to start.\n\nError: ${errMsg}\n\ncanvas size: ${canvas.width}×${canvas.height}\nclientSize: ${canvas.clientWidth}×${canvas.clientHeight}`,
+      `WebGL failed to start.\n\nError: ${errMsg}\n\ndirectContext: ${directCtx ? 'OK' : 'null'}\nclientSize: ${canvas.clientWidth}×${canvas.clientHeight}`,
       true,
     )
     return
@@ -168,8 +164,11 @@ async function startGame() {
   window.addEventListener('resize', () => engine!.resize())
 }
 
-startGame().catch(err => {
-  const msg = err instanceof Error ? err.message : String(err)
-  showStatus(`Startup failed:\n${msg}`, true)
-  console.error('startGame failed:', err)
+// Defer until all page resources are loaded (matches life_of_squirrel button-click timing)
+window.addEventListener('load', () => {
+  startGame().catch(err => {
+    const msg = err instanceof Error ? err.message : String(err)
+    showStatus(`Startup failed:\n${msg}`, true)
+    console.error('startGame failed:', err)
+  })
 })

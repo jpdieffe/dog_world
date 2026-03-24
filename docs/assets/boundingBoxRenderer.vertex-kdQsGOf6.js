@@ -1,0 +1,1 @@
+import{I as e}from"./index-CJNnVcHn.js";export{e as boundingBoxRendererVertexShaderWGSL};
