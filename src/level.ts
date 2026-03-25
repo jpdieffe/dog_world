@@ -3,10 +3,9 @@ import {
   MeshBuilder,
   StandardMaterial,
   Color3,
-  Vector3,
   Mesh,
-  TransformNode,
 } from '@babylonjs/core'
+import type { EnemyType } from './enemy'
 
 /** Seeded PRNG (mulberry32) so levels are reproducible per round */
 function mulberry32(seed: number) {
@@ -18,24 +17,39 @@ function mulberry32(seed: number) {
   }
 }
 
-export interface WallDef {
-  x: number; y: number; z: number
-  w: number; h: number; d: number
-  color: 'red' | 'blue'
-}
-
 export interface LevelData {
-  walls: WallDef[]
   flagX: number
   flagZ: number
-  enemySpawns: { x: number; z: number }[]
+  enemySpawns: { x: number; z: number; type: EnemyType }[]
   playerSpawnX: number
   playerSpawnZ: number
 }
 
 /**
+ * Pick an enemy type based on round-driven probabilities.
+ * Early rounds: mostly normal. Higher rounds introduce varied types.
+ */
+function pickEnemyType(round: number, rng: () => number): EnemyType {
+  const r = rng()
+  if (round <= 2) return 'normal'
+
+  // Progressive difficulty: more types unlocked at higher rounds
+  const shooterChance = Math.min(0.20, (round - 2) * 0.04)
+  const flyerChance   = Math.min(0.15, (round - 3) * 0.03)
+  const giantChance   = Math.min(0.12, (round - 3) * 0.03)
+  const speedChance   = Math.min(0.18, (round - 2) * 0.04)
+
+  if (r < shooterChance) return 'shooter'
+  if (r < shooterChance + flyerChance) return 'flyer'
+  if (r < shooterChance + flyerChance + giantChance) return 'giant'
+  if (r < shooterChance + flyerChance + giantChance + speedChance) return 'speedster'
+  return 'normal'
+}
+
+/**
  * Generate a level layout for the given round.
- * More walls and enemies each round.
+ * Player spawns on the opposite side of the map from the flag.
+ * Enemies are scattered between the player and the flag.
  */
 export function generateLevel(round: number, worldMinX: number, worldMaxX: number, worldMinZ: number, worldMaxZ: number): LevelData {
   const rng = mulberry32(round * 7919 + 1337)
@@ -48,11 +62,7 @@ export function generateLevel(round: number, worldMinX: number, worldMaxX: numbe
   const rangeX = maxX - minX
   const rangeZ = maxZ - minZ
 
-  // Player always spawns near origin
-  const playerSpawnX = 0
-  const playerSpawnZ = 0
-
-  // Flag spawns far from player — in a random quadrant at ~70-90% of map distance
+  // Flag spawns in a random quadrant at ~70-90% of map distance from center
   const quadrant = Math.floor(rng() * 4)
   const flagDist = 0.7 + rng() * 0.2
   let flagX: number, flagZ: number
@@ -63,108 +73,30 @@ export function generateLevel(round: number, worldMinX: number, worldMaxX: numbe
     default: flagX = minX + rangeX * (1 - flagDist); flagZ = minZ + rangeZ * (1 - flagDist); break
   }
 
-  // Generate walls — more each round
-  const wallCount = 15 + round * 5
-  const walls: WallDef[] = []
+  // Player spawns on the opposite side of the map from the flag
+  const cx = (minX + maxX) / 2
+  const cz = (minZ + maxZ) / 2
+  const playerSpawnX = cx - (flagX - cx)
+  const playerSpawnZ = cz - (flagZ - cz)
 
-  for (let i = 0; i < wallCount; i++) {
-    const wx = minX + rng() * rangeX
-    const wz = minZ + rng() * rangeZ
-
-    // Skip walls that would block the spawn or flag
-    if (Math.abs(wx - playerSpawnX) < 8 && Math.abs(wz - playerSpawnZ) < 8) continue
-    if (Math.abs(wx - flagX) < 6 && Math.abs(wz - flagZ) < 6) continue
-
-    const isLong = rng() > 0.5
-    const w = isLong ? 1.5 + rng() * 2 : 6 + rng() * 14
-    const d = isLong ? 6 + rng() * 14 : 1.5 + rng() * 2
-    const h = 3 + rng() * 4
-    const color: 'red' | 'blue' = rng() > 0.5 ? 'red' : 'blue'
-
-    walls.push({ x: wx - w / 2, y: 0, z: wz - d / 2, w, h, d, color })
-  }
-
-  // Add some building clusters (4 walls around a space)
-  const buildingCount = 2 + Math.floor(round * 0.5)
-  for (let i = 0; i < buildingCount; i++) {
-    const bx = minX + 10 + rng() * (rangeX - 20)
-    const bz = minZ + 10 + rng() * (rangeZ - 20)
-    if (Math.abs(bx - playerSpawnX) < 12 && Math.abs(bz - playerSpawnZ) < 12) continue
-
-    const bw = 8 + rng() * 6
-    const bd = 8 + rng() * 6
-    const bh = 3 + rng() * 3
-    const thick = 1.5
-    const bColor: 'red' | 'blue' = rng() > 0.5 ? 'red' : 'blue'
-
-    walls.push({ x: bx, y: 0, z: bz, w: bw, h: bh, d: thick, color: bColor })
-    walls.push({ x: bx, y: 0, z: bz + bd - thick, w: bw, h: bh, d: thick, color: bColor })
-    walls.push({ x: bx, y: 0, z: bz + thick, w: thick, h: bh, d: bd - thick * 2, color: bColor })
-    walls.push({ x: bx + bw - thick, y: 0, z: bz + thick, w: thick, h: bh, d: bd - thick * 2, color: bColor })
-  }
-
-  // Enemy spawns — scattered around, not near player spawn
+  // Enemy spawns — between player and flag, progressive count
   const enemyCount = 3 + round * 2
-  const enemySpawns: { x: number; z: number }[] = []
+  const enemySpawns: { x: number; z: number; type: EnemyType }[] = []
   for (let i = 0; i < enemyCount; i++) {
-    let ex: number, ez: number
-    let attempts = 0
-    do {
-      ex = minX + rng() * rangeX
-      ez = minZ + rng() * rangeZ
-      attempts++
-    } while (Math.sqrt(ex * ex + ez * ez) < 20 && attempts < 30)
-    enemySpawns.push({ x: ex, z: ez })
+    // Place along the corridor between player and flag with lateral spread
+    const t = 0.15 + rng() * 0.7 // 15-85% along the path
+    const baseX = playerSpawnX + (flagX - playerSpawnX) * t
+    const baseZ = playerSpawnZ + (flagZ - playerSpawnZ) * t
+    // Add lateral spread perpendicular to the path
+    const spread = 15 + rng() * 20
+    const angle = rng() * Math.PI * 2
+    const ex = Math.max(minX, Math.min(maxX, baseX + Math.cos(angle) * spread))
+    const ez = Math.max(minZ, Math.min(maxZ, baseZ + Math.sin(angle) * spread))
+    const type = pickEnemyType(round, rng)
+    enemySpawns.push({ x: ex, z: ez, type })
   }
 
-  return { walls, flagX, flagZ, enemySpawns, playerSpawnX, playerSpawnZ }
-}
-
-// Shared materials (created once per scene)
-let redMat: StandardMaterial | null = null
-let blueMat: StandardMaterial | null = null
-
-function getWallMaterial(scene: Scene, color: 'red' | 'blue'): StandardMaterial {
-  if (color === 'red') {
-    if (!redMat || redMat.getScene() !== scene) {
-      redMat = new StandardMaterial('wallRed', scene)
-      redMat.diffuseColor = new Color3(0.75, 0.15, 0.12)
-      redMat.specularColor = new Color3(0.15, 0.05, 0.05)
-    }
-    return redMat
-  } else {
-    if (!blueMat || blueMat.getScene() !== scene) {
-      blueMat = new StandardMaterial('wallBlue', scene)
-      blueMat.diffuseColor = new Color3(0.15, 0.25, 0.75)
-      blueMat.specularColor = new Color3(0.05, 0.05, 0.15)
-    }
-    return blueMat
-  }
-}
-
-/**
- * Create solid box meshes for all walls. Returns array of meshes for disposal.
- */
-export function createWallMeshes(scene: Scene, walls: WallDef[], getSurfaceY: (x: number, z: number) => number): Mesh[] {
-  const meshes: Mesh[] = []
-  for (let i = 0; i < walls.length; i++) {
-    const w = walls[i]
-    const cx = w.x + w.w / 2
-    const cz = w.z + w.d / 2
-    const surfY = getSurfaceY(cx, cz)
-    const baseY = Math.max(surfY, w.y)
-
-    const box = MeshBuilder.CreateBox(`wall_${i}`, {
-      width: w.w,
-      height: w.h,
-      depth: w.d,
-    }, scene)
-    box.position.set(cx, baseY + w.h / 2, cz)
-    box.material = getWallMaterial(scene, w.color)
-    box.checkCollisions = true
-    meshes.push(box)
-  }
-  return meshes
+  return { flagX, flagZ, enemySpawns, playerSpawnX, playerSpawnZ }
 }
 
 /**

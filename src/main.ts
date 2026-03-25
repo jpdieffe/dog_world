@@ -157,6 +157,7 @@ async function startGame() {
   let flagMesh: Mesh | null = null
   let flagX = 0
   let flagZ = 0
+  let flagY = 0
   let roundActive = false
   let lastRoundStartMs = 0
   const FLAG_REACH = 3.5
@@ -187,11 +188,12 @@ async function startGame() {
     flagX = level.flagX
     flagZ = level.flagZ
     const flagSurf = terrain!.getSurfaceY(flagX, flagZ)
-    flagMesh = createFlag(scene, flagX, flagZ, flagSurf + 0.1)
+    flagY = flagSurf + 0.1
+    flagMesh = createFlag(scene, flagX, flagZ, flagY)
 
     // Spawn enemies
     for (const sp of level.enemySpawns) {
-      enemies.push(new Enemy(scene, terrain!, sp.x, sp.z))
+      enemies.push(new Enemy(scene, terrain!, sp.x, sp.z, sp.type))
     }
 
     // Reset player position
@@ -290,12 +292,15 @@ async function startGame() {
           for (const enemy of enemies) {
             const caught = enemy.update(dt, player.position, remoteVec)
             if (caught) { onCaught(); break }
+            // Check bullet hits from shooter enemies
+            if (enemy.checkBulletHit(player.position)) { onCaught(); break }
           }
 
-          // ── Flag check ─────────────────────────────────────────────────────
+          // ── Flag check (3D distance — digging under doesn't count) ─────
           const fdx = player.position.x - flagX
+          const fdy = player.position.y - flagY
           const fdz = player.position.z - flagZ
-          if (Math.sqrt(fdx * fdx + fdz * fdz) < FLAG_REACH) {
+          if (Math.sqrt(fdx * fdx + fdy * fdy + fdz * fdz) < FLAG_REACH) {
             onFlagReached()
           }
         }
