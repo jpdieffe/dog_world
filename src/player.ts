@@ -104,7 +104,7 @@ export class Player {
       if (document.pointerLockElement !== canvas) return
       const sens = 0.004
       cam.alpha -= e.movementX * sens
-      cam.beta  += e.movementY * sens
+      cam.beta  -= e.movementY * sens
       if (cam.beta < (cam.lowerBetaLimit ?? 0.2))            cam.beta = cam.lowerBetaLimit ?? 0.2
       if (cam.beta > (cam.upperBetaLimit ?? Math.PI * 0.45)) cam.beta = cam.upperBetaLimit ?? Math.PI * 0.45
     })
