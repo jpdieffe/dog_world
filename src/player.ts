@@ -224,21 +224,22 @@ export class Player {
     // Apply Y first (gravity / jump)
     this.position.y += this.velocity.y * dt
 
-    // Apply X — check at feet and mid-body before committing
+    // Apply X — check at knee and mid-body before committing
+    // Use knee height (0.45) so small slopes are walkable
     const newX = this.position.x + this.velocity.x * dt
-    const solidAtFeetX = this.terrain.isSolid(newX, this.position.y + 0.15, this.position.z)
+    const solidAtKneeX = this.terrain.isSolid(newX, this.position.y + 0.45, this.position.z)
     const solidAtMidX  = this.terrain.isSolid(newX, this.position.y + PLAYER_HEIGHT * 0.5, this.position.z)
-    if (!solidAtFeetX && !solidAtMidX) {
+    if (!solidAtKneeX && !solidAtMidX) {
       this.position.x = newX
     } else {
       this.velocity.x = 0
     }
 
-    // Apply Z — check at feet and mid-body before committing
+    // Apply Z — check at knee and mid-body before committing
     const newZ = this.position.z + this.velocity.z * dt
-    const solidAtFeetZ = this.terrain.isSolid(this.position.x, this.position.y + 0.15, newZ)
+    const solidAtKneeZ = this.terrain.isSolid(this.position.x, this.position.y + 0.45, newZ)
     const solidAtMidZ  = this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT * 0.5, newZ)
-    if (!solidAtFeetZ && !solidAtMidZ) {
+    if (!solidAtKneeZ && !solidAtMidZ) {
       this.position.z = newZ
     } else {
       this.velocity.z = 0
