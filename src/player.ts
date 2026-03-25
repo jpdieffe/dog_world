@@ -20,6 +20,11 @@ const PLAYER_RADIUS = 0.4
 const TERMINAL_VEL  = -30
 const FOX_SCALE     = 1.8
 
+// ── Camera constants ─────────────────────────────────────────────────────────
+const CAM_DEFAULT_RADIUS = 14
+const CAM_MIN_RADIUS     = 2     // close enough to see dog head at screen bottom
+const CAM_LERP_SPEED     = 12   // how fast the radius adjusts (units/sec)
+
 const SPAWN = new Vector3(0, 4, 0)
 
 type AnimState = 'idle' | 'run' | 'jump' | 'fall'
@@ -59,6 +64,8 @@ export class Player {
   camera!: ArcRotateCamera
   /** The direction the player model faces (radians, Y axis) */
   facingY = 0
+  /** The desired camera radius (before terrain collision) */
+  private desiredRadius = CAM_DEFAULT_RADIUS
 
   // Input state
   private keys = new Set<string>()
@@ -80,11 +87,11 @@ export class Player {
   // ── Camera ───────────────────────────────────────────────────────────────────
   private setupCamera(): void {
     // ArcRotateCamera orbits the player — uses LEFT mouse drag to rotate (no pointer lock needed)
-    const cam = new ArcRotateCamera('cam', -Math.PI / 2, 1.0, 14, SPAWN.clone(), this.scene)
-    cam.lowerRadiusLimit = 4
+    const cam = new ArcRotateCamera('cam', -Math.PI / 2, 1.0, CAM_DEFAULT_RADIUS, SPAWN.clone(), this.scene)
+    cam.lowerRadiusLimit = CAM_MIN_RADIUS
     cam.upperRadiusLimit = 28
-    cam.lowerBetaLimit = 0.2
-    cam.upperBetaLimit = Math.PI * 0.45
+    cam.lowerBetaLimit = 0.15            // nearly straight up
+    cam.upperBetaLimit = Math.PI * 0.85  // nearly straight down
 
     // Disable panning (middle mouse) and keyboard
     cam.panningSensibility = 0
@@ -105,8 +112,8 @@ export class Player {
       const sens = 0.004
       cam.alpha -= e.movementX * sens
       cam.beta  -= e.movementY * sens
-      if (cam.beta < (cam.lowerBetaLimit ?? 0.2))            cam.beta = cam.lowerBetaLimit ?? 0.2
-      if (cam.beta > (cam.upperBetaLimit ?? Math.PI * 0.45)) cam.beta = cam.upperBetaLimit ?? Math.PI * 0.45
+      if (cam.beta < (cam.lowerBetaLimit ?? 0.15))            cam.beta = cam.lowerBetaLimit ?? 0.15
+      if (cam.beta > (cam.upperBetaLimit ?? Math.PI * 0.85)) cam.beta = cam.upperBetaLimit ?? Math.PI * 0.85
     })
   }
 
@@ -267,6 +274,47 @@ export class Player {
     // ── Camera target follows player ───────────────────────────────────────
     const headY = this.position.y + PLAYER_HEIGHT * 0.8
     this.camera.target.set(this.position.x, headY, this.position.z)
+
+    // ── Dynamic camera radius (terrain collision) ──────────────────────────
+    this.adjustCameraRadius(dt)
+  }
+
+  /**
+   * Pull the camera closer when its computed position would be inside terrain.
+   * Binary-search along the target→camera ray for the furthest clear radius.
+   */
+  private adjustCameraRadius(dt: number): void {
+    const cam = this.camera
+    const target = cam.target
+
+    // Compute the direction from target to where the camera *would* be at full radius
+    const dirFromTarget = cam.position.subtract(target).normalize()
+
+    // Find the largest radius (up to desiredRadius) where the camera is NOT underground
+    let safeRadius = CAM_MIN_RADIUS
+    const steps = 8
+    for (let i = steps; i >= 0; i--) {
+      const r = CAM_MIN_RADIUS + (this.desiredRadius - CAM_MIN_RADIUS) * (i / steps)
+      const probe = target.add(dirFromTarget.scale(r))
+      if (!this.terrain.isSolid(probe.x, probe.y, probe.z)) {
+        safeRadius = r
+        break
+      }
+    }
+
+    // Smoothly lerp toward the safe radius (pull in fast, restore gradually)
+    const diff = safeRadius - cam.radius
+    if (diff < 0) {
+      // Pulling in — snap quickly so we don't clip through terrain
+      cam.radius += diff * Math.min(1, CAM_LERP_SPEED * 2 * dt)
+    } else {
+      // Restoring — ease back gently
+      cam.radius += diff * Math.min(1, CAM_LERP_SPEED * 0.5 * dt)
+    }
+
+    // Clamp
+    if (cam.radius < CAM_MIN_RADIUS) cam.radius = CAM_MIN_RADIUS
+    if (cam.radius > this.desiredRadius) cam.radius = this.desiredRadius
   }
 
   /** Get current position (for external use) */
