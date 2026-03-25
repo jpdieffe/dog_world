@@ -196,6 +196,11 @@ async function startGame() {
 
     roundActive = true
     flashMessage(`Round ${round} — Reach the red flag!`, 3000)
+
+    // Host sends round to joiner so they spawn enemies/flag too
+    if (network.isHost && network.isConnected()) {
+      network.sendRound(round)
+    }
   }
 
   function onCaught() {
@@ -210,7 +215,6 @@ async function startGame() {
     if (!roundActive) return
     roundActive = false
     flashMessage(`Round ${currentRound} complete!`, 2500, '#66ff88')
-    if (network.isConnected() && network.isHost) network.sendRound(currentRound + 1)
     setTimeout(() => startRound(currentRound + 1), 2800)
   }
 
@@ -271,21 +275,26 @@ async function startGame() {
           digCooldown = 0
         }
 
-        // ── Enemy AI (host/solo only — joiner syncs via messages) ──────────
-        if (roundActive && (network.isHost || !network.isConnected())) {
+        // ── Enemy AI ───────────────────────────────────────────────────────
+        if (roundActive) {
           const remoteVec = network.lastRemoteState
             ? new Vector3(network.lastRemoteState.x, network.lastRemoteState.y, network.lastRemoteState.z)
             : null
           for (const enemy of enemies) {
             const caught = enemy.update(dt, player.position, remoteVec)
-            if (caught) { onCaught(); break }
+            // Only host/solo triggers catch events
+            if (caught && (network.isHost || !network.isConnected())) {
+              onCaught(); break
+            }
           }
 
-          // ── Flag check ─────────────────────────────────────────────────────
-          const fdx = player.position.x - flagX
-          const fdz = player.position.z - flagZ
-          if (Math.sqrt(fdx * fdx + fdz * fdz) < FLAG_REACH) {
-            onFlagReached()
+          // ── Flag check (host/solo only) ────────────────────────────────────
+          if (network.isHost || !network.isConnected()) {
+            const fdx = player.position.x - flagX
+            const fdz = player.position.z - flagZ
+            if (Math.sqrt(fdx * fdx + fdz * fdz) < FLAG_REACH) {
+              onFlagReached()
+            }
           }
         }
       }
@@ -314,7 +323,7 @@ async function startGame() {
         if (roundActive) {
           roundActive = false
           flashMessage('Caught! Restarting round…', 2000, '#ff6666')
-          setTimeout(() => startRound(currentRound), 2200)
+          // Don't call startRound here — host's startRound will send the round message
         }
       }
     } catch (err) {
