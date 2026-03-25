@@ -196,18 +196,13 @@ async function startGame() {
 
     roundActive = true
     flashMessage(`Round ${round} — Reach the red flag!`, 3000)
-
-    // Sync round to remote player
-    if (network.isConnected()) {
-      network.sendRound(round)
-    }
   }
 
   function onCaught() {
     if (!roundActive) return
     roundActive = false
     flashMessage('Caught! Restarting round…', 2000, '#ff6666')
-    if (network.isConnected()) network.sendCaught()
+    if (network.isConnected() && network.isHost) network.sendCaught()
     setTimeout(() => startRound(currentRound), 2200)
   }
 
@@ -215,13 +210,16 @@ async function startGame() {
     if (!roundActive) return
     roundActive = false
     flashMessage(`Round ${currentRound} complete!`, 2500, '#66ff88')
+    if (network.isConnected() && network.isHost) network.sendRound(currentRound + 1)
     setTimeout(() => startRound(currentRound + 1), 2800)
   }
 
-  // Start round 1
-  if (terrain && player) {
+  // Start round 1 (host or solo — joiner waits for host's round message)
+  if (terrain && player && (network.isHost || !network.isConnected())) {
     hideStatus()
     startRound(1)
+  } else if (terrain && player) {
+    hideStatus()
   }
 
   // ── Network send timer ────────────────────────────────────────────────────
@@ -273,8 +271,8 @@ async function startGame() {
           digCooldown = 0
         }
 
-        // ── Enemy AI ───────────────────────────────────────────────────────
-        if (roundActive) {
+        // ── Enemy AI (host/solo only — joiner syncs via messages) ──────────
+        if (roundActive && (network.isHost || !network.isConnected())) {
           const remoteVec = network.lastRemoteState
             ? new Vector3(network.lastRemoteState.x, network.lastRemoteState.y, network.lastRemoteState.z)
             : null

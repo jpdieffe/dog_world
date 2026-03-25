@@ -40,6 +40,7 @@ export class Network {
   pendingDigs: DigEvent[] = []
   pendingRound: number | null = null
   pendingCaught = false
+  isHost = false
 
   onPeerConnected: (() => void) | null = null
   onError: ((msg: string) => void) | null = null
@@ -51,6 +52,7 @@ export class Network {
 
   host(onReady: (roomId: string) => void, roomCode?: string) {
     this.destroy()
+    this.isHost = true
     this.peer = new Peer(roomCode ?? fruitId(), PEER_SERVER)
 
     const timeout = setTimeout(() => {
@@ -88,6 +90,7 @@ export class Network {
 
   join(roomId: string, onConnected: () => void) {
     this.destroy()
+    this.isHost = false
     this.peer = new Peer(PEER_SERVER as any)
 
     const timeout = setTimeout(() => {
