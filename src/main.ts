@@ -11,7 +11,6 @@ import {
   StandardMaterial,
   Mesh,
 } from '@babylonjs/core'
-import { CSG } from '@babylonjs/core/Meshes/csg'
 import { Terrain } from './terrain'
 import { Player } from './player'
 import { Network } from './network'
@@ -158,6 +157,8 @@ async function startGame() {
   let enemies: Enemy[] = []
   let wallMeshes: Mesh[] = []
   let wallDefs: WallDef[] = []
+  const wallHits = new Map<string, number>()
+  const WALL_HP = 10
   let flagMesh: Mesh | null = null
   let flagX = 0
   let flagZ = 0
@@ -179,6 +180,7 @@ async function startGame() {
     for (const m of wallMeshes) m.dispose()
     wallMeshes = []
     wallDefs = []
+    wallHits.clear()
 
     // Dispose old flag
     if (flagMesh) { flagMesh.dispose(); flagMesh = null }
@@ -290,22 +292,23 @@ async function startGame() {
               terrain.dig(pt.x, pt.y, pt.z)
               network.sendDig({ x: pt.x, y: pt.y, z: pt.z })
 
-              // Carve visual hole in wall mesh via CSG
+              // Damage wall mesh — fade and destroy after enough digs
               if (hit.pickedMesh && hit.pickedMesh.name.startsWith('wall_')) {
-                const wallMesh = hit.pickedMesh as Mesh
-                const digSphere = MeshBuilder.CreateSphere('_digTmp', { diameter: 3 }, scene)
-                digSphere.position.copyFrom(hit.pickedPoint!)
-                try {
-                  const wallCSG = CSG.FromMesh(wallMesh)
-                  const sphereCSG = CSG.FromMesh(digSphere)
-                  wallCSG.subtractInPlace(sphereCSG)
-                  const carved = wallCSG.toMesh(wallMesh.name, wallMesh.material, scene)
-                  carved.checkCollisions = true
-                  const idx = wallMeshes.indexOf(wallMesh)
-                  if (idx >= 0) wallMeshes[idx] = carved
-                  wallMesh.dispose()
-                } catch { /* CSG can fail on degenerate geometry — ignore */ }
-                digSphere.dispose()
+                const wName = hit.pickedMesh.name
+                const hits = (wallHits.get(wName) ?? 0) + 1
+                wallHits.set(wName, hits)
+                if (hits >= WALL_HP) {
+                  const idx = wallMeshes.indexOf(hit.pickedMesh as Mesh)
+                  if (idx >= 0) wallMeshes.splice(idx, 1)
+                  hit.pickedMesh.dispose()
+                  wallHits.delete(wName)
+                } else {
+                  // Clone material on first hit so fading is per-wall
+                  if (hits === 1 && hit.pickedMesh.material) {
+                    hit.pickedMesh.material = hit.pickedMesh.material.clone(wName + '_mat')
+                  }
+                  hit.pickedMesh.visibility = 1 - hits / WALL_HP * 0.6
+                }
               }
             }
           }

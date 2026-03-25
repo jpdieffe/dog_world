@@ -1,0 +1,1 @@
+import{_n as e}from"./index-9VYBFutD.js";export{e as particlesVertexShaderWGSL};
