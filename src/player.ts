@@ -269,7 +269,12 @@ export class Player {
 
     // ── Sync model to position ─────────────────────────────────────────────
     if (this.modelRoot) {
-      this.modelRoot.position.copyFrom(this.position)
+      this.modelRoot.position.x = this.position.x
+      this.modelRoot.position.z = this.position.z
+      // Subtract yOffset so the model's feet (not its origin) land at position.y
+      const entry = this.anims.get(this.currentAnim)
+      const yOff = entry ? entry.yOffset : 0
+      this.modelRoot.position.y = this.position.y - yOff
       this.modelRoot.rotation.y = this.facingY
     }
 
