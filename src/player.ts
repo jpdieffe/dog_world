@@ -89,10 +89,25 @@ export class Player {
     // Disable panning (middle mouse) and keyboard
     cam.panningSensibility = 0
     cam.inputs.removeByType('ArcRotateCameraKeyboardMoveInput')
+    // Pointer-lock handles rotation manually — remove the default drag handler
+    cam.inputs.removeByType('ArcRotateCameraPointersInput')
 
     const canvas = this.scene.getEngine().getRenderingCanvas()!
     cam.attachControl(canvas, true)
     this.camera = cam
+
+    // Click canvas to capture pointer; mouse movement rotates camera
+    canvas.addEventListener('click', () => {
+      canvas.requestPointerLock()
+    })
+    document.addEventListener('mousemove', (e) => {
+      if (document.pointerLockElement !== canvas) return
+      const sens = 0.004
+      cam.alpha -= e.movementX * sens
+      cam.beta  += e.movementY * sens
+      if (cam.beta < (cam.lowerBetaLimit ?? 0.2))            cam.beta = cam.lowerBetaLimit ?? 0.2
+      if (cam.beta > (cam.upperBetaLimit ?? Math.PI * 0.45)) cam.beta = cam.upperBetaLimit ?? Math.PI * 0.45
+    })
   }
 
   // ── Input ────────────────────────────────────────────────────────────────────
@@ -172,7 +187,8 @@ export class Player {
     if (this.keys.has('d') || this.keys.has('arrowright')) moveX += 1
 
     const camAlpha = this.camera.alpha
-    const forward = new Vector3(Math.sin(camAlpha), 0, Math.cos(camAlpha))
+    // forward = direction FROM camera position TO player (i.e. camera-facing direction)
+    const forward = new Vector3(-Math.sin(camAlpha), 0, -Math.cos(camAlpha))
     const right   = new Vector3(Math.cos(camAlpha), 0, -Math.sin(camAlpha))
     const moveDir = forward.scale(moveZ).add(right.scale(moveX))
     if (moveDir.length() > 0.01) {

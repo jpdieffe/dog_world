@@ -48,9 +48,9 @@ export class Terrain {
     this.worldMaxX = half
     this.worldMaxZ = half
 
-    // Shared ground material
+    // Shared ground material — diffuse white so vertex colours control the final look
     this.material = new StandardMaterial('terrainMat', scene)
-    this.material.diffuseColor = new Color3(0.45, 0.32, 0.18) // earthy brown
+    this.material.diffuseColor = new Color3(1, 1, 1)
     this.material.specularColor = new Color3(0.05, 0.05, 0.05)
     this.material.backFaceCulling = false // see inside tunnels
 
@@ -281,10 +281,31 @@ class TerrainChunk {
       this.mesh.material = this.material
     }
 
+    // Vertex colours: upward-facing faces → grass green; sides/underground → dirt brown
+    const vertCount = result.positions.length / 3
+    const colors = new Float32Array(vertCount * 4)
+    for (let i = 0; i < vertCount; i++) {
+      const ny = result.normals[i * 3 + 1]
+      if (ny > 0.5) {
+        // grass
+        colors[i * 4 + 0] = 0.28
+        colors[i * 4 + 1] = 0.60
+        colors[i * 4 + 2] = 0.14
+        colors[i * 4 + 3] = 1.0
+      } else {
+        // dirt
+        colors[i * 4 + 0] = 0.52
+        colors[i * 4 + 1] = 0.37
+        colors[i * 4 + 2] = 0.22
+        colors[i * 4 + 3] = 1.0
+      }
+    }
+
     const vertexData = new VertexData()
     vertexData.positions = result.positions
     vertexData.indices = result.indices
     vertexData.normals = result.normals
+    vertexData.colors = colors
     vertexData.applyToMesh(this.mesh, true) // updatable = true for re-digging
   }
 }

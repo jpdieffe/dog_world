@@ -1,1 +1,0 @@
-import{Zn as e}from"./index-EIMkuokN.js";export{e as lightProxyVertexShaderWGSL};

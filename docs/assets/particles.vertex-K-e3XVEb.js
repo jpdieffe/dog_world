@@ -1,1 +1,0 @@
-import{_n as e}from"./index-EIMkuokN.js";export{e as particlesVertexShaderWGSL};

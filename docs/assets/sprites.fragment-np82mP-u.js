@@ -1,0 +1,1 @@
+import{d as e}from"./index-PZ2Rm0pK.js";export{e as spritesPixelShaderWGSL};

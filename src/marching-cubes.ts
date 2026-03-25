@@ -421,7 +421,8 @@ export function marchingCubes(
           const i0 = getOrCreateVertex(v0[0], v0[1], v0[2])
           const i1 = getOrCreateVertex(v1[0], v1[1], v1[2])
           const i2 = getOrCreateVertex(v2[0], v2[1], v2[2])
-          indices.push(i0, i1, i2)
+          // Swap i1/i2 to flip winding so normals face outward in BabylonJS (left-handed)
+          indices.push(i0, i2, i1)
         }
       }
     }
