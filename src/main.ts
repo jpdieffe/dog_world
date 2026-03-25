@@ -11,6 +11,7 @@ import {
   StandardMaterial,
   Mesh,
 } from '@babylonjs/core'
+import { CSG } from '@babylonjs/core/Meshes/csg'
 import { Terrain } from './terrain'
 import { Player } from './player'
 import { Network } from './network'
@@ -189,6 +190,15 @@ async function startGame() {
     wallDefs = level.walls
     wallMeshes = createWallMeshes(scene, level.walls, (x, z) => terrain!.getSurfaceY(x, z))
 
+    // Inject wall volumes into terrain density for collision & digging
+    for (const w of wallDefs) {
+      const cx = w.x + w.w / 2
+      const cz = w.z + w.d / 2
+      const surfY = terrain!.getSurfaceY(cx, cz)
+      const baseY = Math.max(surfY, w.y)
+      terrain!.addBox(w.x, baseY, w.z, w.w, w.h, w.d)
+    }
+
     // Place flag
     flagX = level.flagX
     flagZ = level.flagZ
@@ -202,7 +212,6 @@ async function startGame() {
 
     // Reset player position
     if (player) {
-      player.setWalls(wallDefs)
       const spawnY = terrain!.getSurfaceY(level.playerSpawnX, level.playerSpawnZ) + 2
       player.resetPosition(level.playerSpawnX, spawnY, level.playerSpawnZ)
     }
@@ -281,15 +290,22 @@ async function startGame() {
               terrain.dig(pt.x, pt.y, pt.z)
               network.sendDig({ x: pt.x, y: pt.y, z: pt.z })
 
-              // Destroy wall mesh if hit
+              // Carve visual hole in wall mesh via CSG
               if (hit.pickedMesh && hit.pickedMesh.name.startsWith('wall_')) {
-                const idx = wallMeshes.indexOf(hit.pickedMesh as Mesh)
-                if (idx >= 0) {
-                  wallMeshes.splice(idx, 1)
-                  wallDefs.splice(idx, 1)
-                  if (player) player.setWalls(wallDefs)
-                }
-                hit.pickedMesh.dispose()
+                const wallMesh = hit.pickedMesh as Mesh
+                const digSphere = MeshBuilder.CreateSphere('_digTmp', { diameter: 3 }, scene)
+                digSphere.position.copyFrom(hit.pickedPoint!)
+                try {
+                  const wallCSG = CSG.FromMesh(wallMesh)
+                  const sphereCSG = CSG.FromMesh(digSphere)
+                  wallCSG.subtractInPlace(sphereCSG)
+                  const carved = wallCSG.toMesh(wallMesh.name, wallMesh.material, scene)
+                  carved.checkCollisions = true
+                  const idx = wallMeshes.indexOf(wallMesh)
+                  if (idx >= 0) wallMeshes[idx] = carved
+                  wallMesh.dispose()
+                } catch { /* CSG can fail on degenerate geometry — ignore */ }
+                digSphere.dispose()
               }
             }
           }

@@ -1,1 +1,0 @@
-import{Mn as e}from"./index-slfJozIy.js";export{e as defaultPixelShader};

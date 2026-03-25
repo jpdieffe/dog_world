@@ -1,1 +1,0 @@
-import{_ as e}from"./index-slfJozIy.js";export{e as iblDominantDirectionPixelShaderWGSL};

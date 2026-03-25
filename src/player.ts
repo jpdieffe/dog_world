@@ -11,7 +11,6 @@ import {
 } from '@babylonjs/core'
 import type { Terrain } from './terrain'
 import type { AnimState, PlayerState } from './types'
-import type { WallDef } from './level'
 
 // ── Movement constants ───────────────────────────────────────────────────────
 const GRAVITY       = -28
@@ -69,9 +68,6 @@ export class Player {
 
   // Input state
   private keys = new Set<string>()
-
-  // Wall collision
-  private walls: WallDef[] = []
 
   // Model
   private modelRoot: TransformNode | null = null
@@ -229,54 +225,6 @@ export class Player {
     this.position.y += this.velocity.y * dt
     this.position.z += this.velocity.z * dt
 
-    // ── Wall AABB collision ────────────────────────────────────────────────
-    const PR = 0.4 // player radius (horizontal half–extent)
-    for (const w of this.walls) {
-      const wx2 = w.x + w.w
-      const wz2 = w.z + w.d
-      const surfY = this.terrain.getSurfaceY(w.x + w.w / 2, w.z + w.d / 2)
-      const wy1 = surfY
-      const wy2 = surfY + w.h
-
-      // Overlap test (player capsule AABB vs wall AABB)
-      const overlapX = this.position.x + PR > w.x && this.position.x - PR < wx2
-      const overlapZ = this.position.z + PR > w.z && this.position.z - PR < wz2
-      const overlapY = this.position.y < wy2 && this.position.y + PLAYER_HEIGHT > wy1
-
-      if (overlapX && overlapZ && overlapY) {
-        // Find smallest push-out axis
-        const pushXL = (w.x) - (this.position.x + PR)   // negative
-        const pushXR = (wx2) - (this.position.x - PR)    // positive
-        const pushZN = (w.z) - (this.position.z + PR)    // negative
-        const pushZF = (wz2) - (this.position.z - PR)    // positive
-        const pushYD = wy1 - (this.position.y + PLAYER_HEIGHT) // negative (push down)
-        const pushYU = wy2 - this.position.y               // positive (push up / land on top)
-
-        const axes = [
-          { d: Math.abs(pushXL), push: pushXL, axis: 'x' as const },
-          { d: Math.abs(pushXR), push: pushXR, axis: 'x' as const },
-          { d: Math.abs(pushZN), push: pushZN, axis: 'z' as const },
-          { d: Math.abs(pushZF), push: pushZF, axis: 'z' as const },
-          { d: Math.abs(pushYU), push: pushYU, axis: 'y' as const },
-        ]
-        axes.sort((a, b) => a.d - b.d)
-        const best = axes[0]
-
-        if (best.axis === 'x') {
-          this.position.x += best.push
-          this.velocity.x = 0
-        } else if (best.axis === 'z') {
-          this.position.z += best.push
-          this.velocity.z = 0
-        } else {
-          // Push up — land on top of wall
-          this.position.y += best.push
-          this.velocity.y = 0
-          this.onGround = true
-        }
-      }
-    }
-
     // ── Terrain collision ──────────────────────────────────────────────────
     this.onGround = false
 
@@ -385,11 +333,6 @@ export class Player {
   /** Get current position (for external use) */
   getPosition(): Vector3 {
     return this.position.clone()
-  }
-
-  /** Set the current level walls for collision */
-  setWalls(walls: WallDef[]) {
-    this.walls = walls
   }
 
   /** Teleport player to a new position */

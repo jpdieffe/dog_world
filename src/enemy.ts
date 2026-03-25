@@ -11,7 +11,7 @@ import {
 import type { Terrain } from './terrain'
 
 const HUMAN_FILE   = './assets/human/human_comprehensive.glb'
-const HUMAN_SCALE  = 1.6
+const HUMAN_SCALE  = 6.4
 const DETECT_RANGE = 18
 const CHASE_SPEED  = 7
 const PATROL_SPEED = 2
