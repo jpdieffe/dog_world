@@ -1,1 +1,0 @@
-import{kn as e}from"./index-dtPBIeUe.js";export{e as defaultVertexShaderWGSL};

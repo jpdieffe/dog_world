@@ -1,1 +1,0 @@
-import{Gn as e}from"./index-dtPBIeUe.js";export{e as colorVertexShader};

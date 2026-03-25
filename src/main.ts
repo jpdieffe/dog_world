@@ -85,6 +85,11 @@ async function startGame() {
   const scene = new Scene(engine)
   scene.clearColor = new Color4(0.55, 0.78, 0.96, 1.0)
 
+  // Fog hides underground edges when camera rotates
+  scene.fogMode = Scene.FOGMODE_EXP2
+  scene.fogColor = new Color3(0.55, 0.78, 0.96)
+  scene.fogDensity = 0.022
+
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene)
   hemi.intensity = 0.6
   const sun = new DirectionalLight('sun', new Vector3(-1, -2, -1), scene)
@@ -105,6 +110,15 @@ async function startGame() {
   try {
     terrain = new Terrain(scene)
     debugSphere.dispose() // hide debug sphere once terrain is ready
+
+    // Large bedrock plane seals the underside of the world so it looks solid
+    const bedrock = MeshBuilder.CreateGround('bedrock', { width: 200, height: 200 }, scene)
+    bedrock.position.y = -10.5
+    const bedrockMat = new StandardMaterial('bedrockMat', scene)
+    bedrockMat.diffuseColor = new Color3(0.30, 0.20, 0.12)
+    bedrockMat.specularColor = new Color3(0, 0, 0)
+    bedrock.material = bedrockMat
+
     console.log('Terrain created OK')
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

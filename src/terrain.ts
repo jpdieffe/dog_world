@@ -25,7 +25,7 @@ const Y_OFFSET = -10
 /** Dig radius in world units */
 const DIG_RADIUS = 2.0
 /** Dig strength (how much density is removed per click) */
-const DIG_STRENGTH = 1.5
+const DIG_STRENGTH = 4.5
 
 export class Terrain {
   private scene: Scene
