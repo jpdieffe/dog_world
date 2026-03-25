@@ -1,0 +1,1 @@
+import{$n as e}from"./index-BfzTbgnY.js";export{e as lightProxyVertexShader};

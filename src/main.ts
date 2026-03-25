@@ -148,7 +148,7 @@ async function startGame() {
   canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
   let digCooldown = 0
-  const DIG_INTERVAL = 0.15
+  const DIG_INTERVAL = 0.05
 
   // ── Render loop ───────────────────────────────────────────────────────────
   engine.runRenderLoop(() => {

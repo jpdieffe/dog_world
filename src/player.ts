@@ -272,7 +272,9 @@ export class Player {
     }
 
     // ── Camera target follows player ───────────────────────────────────────
-    const headY = this.position.y + PLAYER_HEIGHT * 0.8
+    // Raise the target when the camera is pulled in close so we look over the dog
+    const closeness = 1 - Math.max(0, Math.min(1, (this.camera.radius - CAM_MIN_RADIUS) / (CAM_DEFAULT_RADIUS - CAM_MIN_RADIUS)))
+    const headY = this.position.y + PLAYER_HEIGHT * 0.8 + closeness * 1.5
     this.camera.target.set(this.position.x, headY, this.position.z)
 
     // ── Dynamic camera radius (terrain collision) ──────────────────────────

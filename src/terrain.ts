@@ -23,7 +23,7 @@ const VERT_SAMPLES = 16
 /** Y offset: grid starts at this Y, surface should be near y=0 */
 const Y_OFFSET = -10
 /** Dig radius in world units */
-const DIG_RADIUS = 2.0
+const DIG_RADIUS = 4.0
 /** Dig strength (how much density is removed per click) */
 const DIG_STRENGTH = 4.5
 
