@@ -112,8 +112,9 @@ export class Enemy {
     }
 
     const dx = targetPos.x - this.position.x
+    const dy = targetPos.y - this.position.y
     const dz = targetPos.z - this.position.z
-    const dist = Math.sqrt(dx * dx + dz * dz)
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
     if (dist < DETECT_RANGE) {
       // Chase
@@ -154,10 +155,8 @@ export class Enemy {
       this.root.rotation.y = this.facingY
     }
 
-    // Catch check against local player only
-    const catchDx = playerPos.x - this.position.x
-    const catchDz = playerPos.z - this.position.z
-    const catchDist = Math.sqrt(catchDx * catchDx + catchDz * catchDz)
+    // Catch check against local player only (3D distance — tunnels block catch)
+    const catchDist = Vector3.Distance(playerPos, this.position)
     return catchDist < CATCH_DIST && this.chasing
   }
 

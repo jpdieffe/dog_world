@@ -15,8 +15,7 @@ import { Terrain } from './terrain'
 import { Player } from './player'
 import { Network } from './network'
 import { RemotePlayer } from './remote'
-import { generateLevel, createWallMeshes, createFlag } from './level'
-import type { WallDef } from './level'
+import { generateLevel, createFlag } from './level'
 import { Enemy } from './enemy'
 
 const canvas = document.getElementById('renderCanvas') as HTMLCanvasElement
@@ -155,10 +154,6 @@ async function startGame() {
   // ── Round / Level state ───────────────────────────────────────────────────
   let currentRound = 1
   let enemies: Enemy[] = []
-  let wallMeshes: Mesh[] = []
-  let wallDefs: WallDef[] = []
-  const wallHits = new Map<string, number>()
-  const WALL_HP = 10
   let flagMesh: Mesh | null = null
   let flagX = 0
   let flagZ = 0
@@ -176,30 +171,11 @@ async function startGame() {
     for (const e of enemies) e.dispose()
     enemies = []
 
-    // Dispose old wall meshes
-    for (const m of wallMeshes) m.dispose()
-    wallMeshes = []
-    wallDefs = []
-    wallHits.clear()
-
     // Dispose old flag
     if (flagMesh) { flagMesh.dispose(); flagMesh = null }
 
     // Generate level
     const level = generateLevel(round, terrain!.worldMinX, terrain!.worldMaxX, terrain!.worldMinZ, terrain!.worldMaxZ)
-
-    // Create wall meshes (red/blue boxes)
-    wallDefs = level.walls
-    wallMeshes = createWallMeshes(scene, level.walls, (x, z) => terrain!.getSurfaceY(x, z))
-
-    // Inject wall volumes into terrain density for collision & digging
-    for (const w of wallDefs) {
-      const cx = w.x + w.w / 2
-      const cz = w.z + w.d / 2
-      const surfY = terrain!.getSurfaceY(cx, cz)
-      const baseY = Math.max(surfY, w.y)
-      terrain!.addBox(w.x, baseY, w.z, w.w, w.h, w.d)
-    }
 
     // Place flag
     flagX = level.flagX
@@ -284,32 +260,13 @@ async function startGame() {
             const cam = player.camera
             const dir = cam.target.subtract(cam.position).normalize()
             const ray = new Ray(cam.position, dir, 20)
-            const hit = scene.pickWithRay(ray, (m: any) => m.name.startsWith('chunk_') || m.name.startsWith('wall_'))
+            const hit = scene.pickWithRay(ray, (m: any) => m.name.startsWith('chunk_'))
             if (hit?.hit && hit.pickedPoint) {
               const pt = hit.pickedPoint
               const normal = hit.getNormal(true)
               if (normal) pt.addInPlace(normal.scale(-0.3))
               terrain.dig(pt.x, pt.y, pt.z)
               network.sendDig({ x: pt.x, y: pt.y, z: pt.z })
-
-              // Damage wall mesh — fade and destroy after enough digs
-              if (hit.pickedMesh && hit.pickedMesh.name.startsWith('wall_')) {
-                const wName = hit.pickedMesh.name
-                const hits = (wallHits.get(wName) ?? 0) + 1
-                wallHits.set(wName, hits)
-                if (hits >= WALL_HP) {
-                  const idx = wallMeshes.indexOf(hit.pickedMesh as Mesh)
-                  if (idx >= 0) wallMeshes.splice(idx, 1)
-                  hit.pickedMesh.dispose()
-                  wallHits.delete(wName)
-                } else {
-                  // Clone material on first hit so fading is per-wall
-                  if (hits === 1 && hit.pickedMesh.material) {
-                    hit.pickedMesh.material = hit.pickedMesh.material.clone(wName + '_mat')
-                  }
-                  hit.pickedMesh.visibility = 1 - hits / WALL_HP * 0.6
-                }
-              }
             }
           }
         } else {
