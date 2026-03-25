@@ -17,7 +17,15 @@ export interface DigEvent {
   z: number
 }
 
+/** Enemy position for network sync */
+export interface EnemyNetState {
+  x: number; y: number; z: number; ry: number
+  chasing: boolean
+}
+
 /** Network message envelope */
 export type NetMessage =
   | { type: 'state'; state: PlayerState }
   | { type: 'dig'; dig: DigEvent }
+  | { type: 'round'; round: number }
+  | { type: 'caught' }

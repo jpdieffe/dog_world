@@ -9,11 +9,14 @@ import {
   Ray,
   MeshBuilder,
   StandardMaterial,
+  Mesh,
 } from '@babylonjs/core'
 import { Terrain } from './terrain'
 import { Player } from './player'
 import { Network } from './network'
 import { RemotePlayer } from './remote'
+import { generateLevel, applyWallsToTerrain, createFlag } from './level'
+import { Enemy } from './enemy'
 
 const canvas = document.getElementById('renderCanvas') as HTMLCanvasElement
 const network = new Network()
@@ -88,44 +91,32 @@ async function startGame() {
   const scene = new Scene(engine)
   scene.clearColor = new Color4(0.55, 0.78, 0.96, 1.0)
 
-  // Fog hides underground edges when camera rotates
   scene.fogMode = Scene.FOGMODE_EXP2
   scene.fogColor = new Color3(0.55, 0.78, 0.96)
-  scene.fogDensity = 0.022
+  scene.fogDensity = 0.015
 
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene)
   hemi.intensity = 0.6
   const sun = new DirectionalLight('sun', new Vector3(-1, -2, -1), scene)
   sun.intensity = 0.9
-  sun.position = new Vector3(30, 60, 30)
-
-  // ── Debug reference object — orange sphere at origin ─────────────────────
-  // (Lets us verify Babylon is rendering even if terrain fails)
-  const debugSphere = MeshBuilder.CreateSphere('debugSphere', { diameter: 2 }, scene)
-  debugSphere.position.set(0, 1, 0)
-  const debugMat = new StandardMaterial('debugMat', scene)
-  debugMat.diffuseColor = new Color3(1, 0.5, 0)
-  debugSphere.material = debugMat
+  sun.position = new Vector3(60, 80, 60)
 
   // ── Terrain ───────────────────────────────────────────────────────────────
   showStatus('Building terrain…')
   let terrain: Terrain | null = null
   try {
     terrain = new Terrain(scene)
-    debugSphere.dispose() // hide debug sphere once terrain is ready
 
-    // Large bedrock plane seals the underside of the world so it looks solid
-    const bedrock = MeshBuilder.CreateGround('bedrock', { width: 200, height: 200 }, scene)
+    const bedrock = MeshBuilder.CreateGround('bedrock', { width: 400, height: 400 }, scene)
     bedrock.position.y = -10.5
     const bedrockMat = new StandardMaterial('bedrockMat', scene)
     bedrockMat.diffuseColor = new Color3(0.30, 0.20, 0.12)
     bedrockMat.specularColor = new Color3(0, 0, 0)
     bedrock.material = bedrockMat
-
     console.log('Terrain created OK')
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    showStatus(`Terrain error:\n${msg}\n\nYou can still see the orange sphere if rendering works.`, true)
+    showStatus(`Terrain error:\n${msg}`, true)
     console.error('Terrain error:', err)
   }
 
@@ -134,21 +125,107 @@ async function startGame() {
   if (terrain) {
     try {
       player = new Player(scene, terrain)
-      hideStatus()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       showStatus(`Player error:\n${msg}`, true)
       console.error('Player error:', err)
     }
-  } else {
-    hideStatus()
   }
 
   // ── Remote player ─────────────────────────────────────────────────────────
   const remote = new RemotePlayer(scene)
-
-  // Reconnect signaling after heavy scene init
   network.ensureSignaling()
+
+  // ── HUD elements ──────────────────────────────────────────────────────────
+  const roundHud = document.getElementById('roundHud')!
+  const roundMsg = document.getElementById('roundMsg')!
+
+  function updateRoundHud(round: number) {
+    roundHud.textContent = `Round ${round}`
+  }
+
+  function flashMessage(msg: string, duration = 2000, color = '#ffe066') {
+    roundMsg.textContent = msg
+    roundMsg.style.color = color
+    roundMsg.style.display = 'block'
+    setTimeout(() => { roundMsg.style.display = 'none' }, duration)
+  }
+
+  // ── Round / Level state ───────────────────────────────────────────────────
+  let currentRound = 1
+  let enemies: Enemy[] = []
+  let flagMesh: Mesh | null = null
+  let flagX = 0
+  let flagZ = 0
+  let roundActive = false
+  const FLAG_REACH = 3.5
+
+  function startRound(round: number) {
+    currentRound = round
+    updateRoundHud(round)
+
+    // Reset terrain
+    if (terrain) terrain.reset()
+
+    // Dispose old enemies
+    for (const e of enemies) e.dispose()
+    enemies = []
+
+    // Dispose old flag
+    if (flagMesh) { flagMesh.dispose(); flagMesh = null }
+
+    // Generate level
+    const level = generateLevel(round, terrain!.worldMinX, terrain!.worldMaxX, terrain!.worldMinZ, terrain!.worldMaxZ)
+
+    // Apply walls
+    applyWallsToTerrain(terrain!, level.walls)
+
+    // Place flag
+    flagX = level.flagX
+    flagZ = level.flagZ
+    const flagSurf = terrain!.getSurfaceY(flagX, flagZ)
+    flagMesh = createFlag(scene, flagX, flagZ, flagSurf + 0.1)
+
+    // Spawn enemies
+    for (const sp of level.enemySpawns) {
+      enemies.push(new Enemy(scene, terrain!, sp.x, sp.z))
+    }
+
+    // Reset player position
+    if (player) {
+      const spawnY = terrain!.getSurfaceY(level.playerSpawnX, level.playerSpawnZ) + 2
+      player.resetPosition(level.playerSpawnX, spawnY, level.playerSpawnZ)
+    }
+
+    roundActive = true
+    flashMessage(`Round ${round} — Reach the red flag!`, 3000)
+
+    // Sync round to remote player
+    if (network.isConnected()) {
+      network.sendRound(round)
+    }
+  }
+
+  function onCaught() {
+    if (!roundActive) return
+    roundActive = false
+    flashMessage('Caught! Restarting round…', 2000, '#ff6666')
+    if (network.isConnected()) network.sendCaught()
+    setTimeout(() => startRound(currentRound), 2200)
+  }
+
+  function onFlagReached() {
+    if (!roundActive) return
+    roundActive = false
+    flashMessage(`Round ${currentRound} complete!`, 2500, '#66ff88')
+    setTimeout(() => startRound(currentRound + 1), 2800)
+  }
+
+  // Start round 1
+  if (terrain && player) {
+    hideStatus()
+    startRound(1)
+  }
 
   // ── Network send timer ────────────────────────────────────────────────────
   const SEND_INTERVAL = 1 / 20
@@ -168,7 +245,7 @@ async function startGame() {
     try {
       const dt = Math.min(engine!.getDeltaTime() / 1000, 0.05)
 
-      if (player) {
+      if (player && terrain) {
         player.update(dt)
 
         // ── Send position to remote ────────────────────────────────────────
@@ -179,7 +256,7 @@ async function startGame() {
         }
 
         // ── Digging ────────────────────────────────────────────────────────
-        if (digging && terrain) {
+        if (digging) {
           digCooldown -= dt
           if (digCooldown <= 0) {
             digCooldown = DIG_INTERVAL
@@ -191,13 +268,30 @@ async function startGame() {
               const pt = hit.pickedPoint
               const normal = hit.getNormal(true)
               if (normal) pt.addInPlace(normal.scale(-0.3))
-              terrain!.dig(pt.x, pt.y, pt.z)
-              // Send dig event to remote player
+              terrain.dig(pt.x, pt.y, pt.z)
               network.sendDig({ x: pt.x, y: pt.y, z: pt.z })
             }
           }
         } else {
           digCooldown = 0
+        }
+
+        // ── Enemy AI ───────────────────────────────────────────────────────
+        if (roundActive) {
+          const remoteVec = network.lastRemoteState
+            ? new Vector3(network.lastRemoteState.x, network.lastRemoteState.y, network.lastRemoteState.z)
+            : null
+          for (const enemy of enemies) {
+            const caught = enemy.update(dt, player.position, remoteVec)
+            if (caught) { onCaught(); break }
+          }
+
+          // ── Flag check ─────────────────────────────────────────────────────
+          const fdx = player.position.x - flagX
+          const fdz = player.position.z - flagZ
+          if (Math.sqrt(fdx * fdx + fdz * fdz) < FLAG_REACH) {
+            onFlagReached()
+          }
         }
       }
 
@@ -213,6 +307,20 @@ async function startGame() {
           terrain.dig(dig.x, dig.y, dig.z)
         }
         network.pendingDigs.length = 0
+      }
+
+      // ── Handle remote round sync ─────────────────────────────────────────
+      if (network.pendingRound !== null) {
+        startRound(network.pendingRound)
+        network.pendingRound = null
+      }
+      if (network.pendingCaught) {
+        network.pendingCaught = false
+        if (roundActive) {
+          roundActive = false
+          flashMessage('Caught! Restarting round…', 2000, '#ff6666')
+          setTimeout(() => startRound(currentRound), 2200)
+        }
       }
     } catch (err) {
       console.error('Render loop error:', err)

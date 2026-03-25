@@ -335,6 +335,13 @@ export class Player {
     return this.position.clone()
   }
 
+  /** Teleport player to a new position */
+  resetPosition(x: number, y: number, z: number) {
+    this.position.set(x, y, z)
+    this.velocity.setAll(0)
+    this.onGround = false
+  }
+
   /** Get state for network sync */
   getState(): PlayerState {
     return {

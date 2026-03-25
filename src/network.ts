@@ -38,6 +38,8 @@ export class Network {
 
   lastRemoteState: PlayerState | null = null
   pendingDigs: DigEvent[] = []
+  pendingRound: number | null = null
+  pendingCaught = false
 
   onPeerConnected: (() => void) | null = null
   onError: ((msg: string) => void) | null = null
@@ -127,6 +129,10 @@ export class Network {
         this.lastRemoteState = msg.state
       } else if (msg.type === 'dig') {
         this.pendingDigs.push(msg.dig)
+      } else if (msg.type === 'round') {
+        this.pendingRound = msg.round
+      } else if (msg.type === 'caught') {
+        this.pendingCaught = true
       }
     })
     conn.on('close', () => {
@@ -148,6 +154,20 @@ export class Network {
   sendDig(dig: DigEvent) {
     if (this.conn?.open) {
       const msg: NetMessage = { type: 'dig', dig }
+      this.conn.send(msg)
+    }
+  }
+
+  sendRound(round: number) {
+    if (this.conn?.open) {
+      const msg: NetMessage = { type: 'round', round }
+      this.conn.send(msg)
+    }
+  }
+
+  sendCaught() {
+    if (this.conn?.open) {
+      const msg: NetMessage = { type: 'caught' }
       this.conn.send(msg)
     }
   }

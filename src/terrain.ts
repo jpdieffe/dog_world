@@ -17,7 +17,7 @@ const CHUNK_SIZE = 16
 /** Cell size (world units per density sample) */
 const CELL_SIZE = CHUNK_SIZE / (CHUNK_SAMPLES - 1)
 /** How many chunks along each horizontal axis  (total area = GRID × CHUNK_SIZE) */
-const GRID = 4
+const GRID = 8
 /** Vertical samples  — enough for ~10m below ground + ~4m above */
 const VERT_SAMPLES = 16
 /** Y offset: grid starts at this Y, surface should be near y=0 */
@@ -55,11 +55,19 @@ export class Terrain {
     this.material.backFaceCulling = false // see inside tunnels
 
     // Create all chunks
+    this.buildChunks()
+  }
+
+  private buildChunks(): void {
+    // Dispose existing chunks
+    for (const [, chunk] of this.chunks) chunk.dispose()
+    this.chunks.clear()
+
     for (let cz = 0; cz < GRID; cz++) {
       for (let cx = 0; cx < GRID; cx++) {
         const key = `${cx},${cz}`
         const chunk = new TerrainChunk(
-          scene,
+          this.scene,
           this.material,
           cx, cz,
           this.worldMinX + cx * CHUNK_SIZE,
@@ -69,6 +77,11 @@ export class Terrain {
         this.chunks.set(key, chunk)
       }
     }
+  }
+
+  /** Reset terrain to pristine state (call at round start) */
+  reset(): void {
+    this.buildChunks()
   }
 
   /**
@@ -86,6 +99,19 @@ export class Terrain {
       }
     }
     return modified
+  }
+
+  /**
+   * Add a solid box into the density field (for walls/buildings).
+   * Only modifies chunks that overlap.
+   */
+  addBox(x: number, y: number, z: number, w: number, h: number, d: number, strength = 6): void {
+    for (const [, chunk] of this.chunks) {
+      if (chunk.intersectsBox(x, y, z, w, h, d)) {
+        chunk.addBox(x, y, z, w, h, d, strength)
+        chunk.rebuild()
+      }
+    }
   }
 
   /**
@@ -205,6 +231,41 @@ class TerrainChunk {
     const dy = wy - closestY
     const dz = wz - closestZ
     return dx * dx + dy * dy + dz * dz <= r * r
+  }
+
+  /** Check if an AABB overlaps this chunk's AABB */
+  intersectsBox(bx: number, by: number, bz: number, bw: number, bh: number, bd: number): boolean {
+    const maxX = this.originX + CHUNK_SIZE
+    const maxY = this.originY + VERT_SAMPLES * CELL_SIZE
+    const maxZ = this.originZ + CHUNK_SIZE
+    return bx + bw > this.originX && bx < maxX &&
+           by + bh > this.originY && by < maxY &&
+           bz + bd > this.originZ && bz < maxZ
+  }
+
+  /** Add a solid box into the density field */
+  addBox(bx: number, by: number, bz: number, bw: number, bh: number, bd: number, strength: number): void {
+    const gxMin = Math.max(0, Math.floor((bx - this.originX) / CELL_SIZE) - 1)
+    const gxMax = Math.min(CHUNK_SAMPLES - 1, Math.ceil((bx + bw - this.originX) / CELL_SIZE) + 1)
+    const gyMin = Math.max(0, Math.floor((by - this.originY) / CELL_SIZE) - 1)
+    const gyMax = Math.min(VERT_SAMPLES - 1, Math.ceil((by + bh - this.originY) / CELL_SIZE) + 1)
+    const gzMin = Math.max(0, Math.floor((bz - this.originZ) / CELL_SIZE) - 1)
+    const gzMax = Math.min(CHUNK_SAMPLES - 1, Math.ceil((bz + bd - this.originZ) / CELL_SIZE) + 1)
+
+    for (let z = gzMin; z <= gzMax; z++) {
+      for (let y = gyMin; y <= gyMax; y++) {
+        for (let x = gxMin; x <= gxMax; x++) {
+          const px = this.originX + x * CELL_SIZE
+          const py = this.originY + y * CELL_SIZE
+          const pz = this.originZ + z * CELL_SIZE
+
+          if (px >= bx && px <= bx + bw && py >= by && py <= by + bh && pz >= bz && pz <= bz + bd) {
+            const i = this.idx(x, y, z)
+            this.density[i] = Math.max(this.density[i], strength)
+          }
+        }
+      }
+    }
   }
 
   /** Subtract a sphere from the density field */
@@ -343,5 +404,13 @@ class TerrainChunk {
     vertexData.normals = result.normals
     vertexData.colors = colors
     vertexData.applyToMesh(this.mesh, true) // updatable = true for re-digging
+  }
+
+  /** Remove mesh from the scene */
+  dispose(): void {
+    if (this.mesh) {
+      this.mesh.dispose()
+      this.mesh = null
+    }
   }
 }
