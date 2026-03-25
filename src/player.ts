@@ -10,6 +10,7 @@ import {
   Mesh,
 } from '@babylonjs/core'
 import type { Terrain } from './terrain'
+import type { AnimState, PlayerState } from './types'
 
 // ── Movement constants ───────────────────────────────────────────────────────
 const GRAVITY       = -28
@@ -26,8 +27,6 @@ const CAM_MIN_RADIUS     = 2     // close enough to see dog head at screen botto
 const CAM_LERP_SPEED     = 12   // how fast the radius adjusts (units/sec)
 
 const SPAWN = new Vector3(0, 4, 0)
-
-type AnimState = 'idle' | 'run' | 'jump' | 'fall'
 
 const FOX_ANIM_FILES: Record<AnimState, string> = {
   idle: './assets/fox/idle.glb',
@@ -334,5 +333,16 @@ export class Player {
   /** Get current position (for external use) */
   getPosition(): Vector3 {
     return this.position.clone()
+  }
+
+  /** Get state for network sync */
+  getState(): PlayerState {
+    return {
+      x:    this.position.x,
+      y:    this.position.y,
+      z:    this.position.z,
+      ry:   this.facingY,
+      anim: this.currentAnim,
+    }
   }
 }

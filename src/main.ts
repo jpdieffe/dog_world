@@ -12,8 +12,11 @@ import {
 } from '@babylonjs/core'
 import { Terrain } from './terrain'
 import { Player } from './player'
+import { Network } from './network'
+import { RemotePlayer } from './remote'
 
 const canvas = document.getElementById('renderCanvas') as HTMLCanvasElement
+const network = new Network()
 
 // ── On-screen status/error overlay ───────────────────────────────────────────
 function showStatus(msg: string, isError = false): void {
@@ -141,6 +144,16 @@ async function startGame() {
     hideStatus()
   }
 
+  // ── Remote player ─────────────────────────────────────────────────────────
+  const remote = new RemotePlayer(scene)
+
+  // Reconnect signaling after heavy scene init
+  network.ensureSignaling()
+
+  // ── Network send timer ────────────────────────────────────────────────────
+  const SEND_INTERVAL = 1 / 20
+  let sendTimer = 0
+
   // ── Input ─────────────────────────────────────────────────────────────────
   let digging = false
   canvas.addEventListener('mousedown', (e) => { if (e.button === 2) digging = true })
@@ -158,6 +171,14 @@ async function startGame() {
       if (player) {
         player.update(dt)
 
+        // ── Send position to remote ────────────────────────────────────────
+        sendTimer += dt
+        if (sendTimer >= SEND_INTERVAL && network.isConnected()) {
+          sendTimer = 0
+          network.sendPosition(player.getState())
+        }
+
+        // ── Digging ────────────────────────────────────────────────────────
         if (digging && terrain) {
           digCooldown -= dt
           if (digCooldown <= 0) {
@@ -171,11 +192,27 @@ async function startGame() {
               const normal = hit.getNormal(true)
               if (normal) pt.addInPlace(normal.scale(-0.3))
               terrain!.dig(pt.x, pt.y, pt.z)
+              // Send dig event to remote player
+              network.sendDig({ x: pt.x, y: pt.y, z: pt.z })
             }
           }
         } else {
           digCooldown = 0
         }
+      }
+
+      // ── Receive remote player state ──────────────────────────────────────
+      if (network.lastRemoteState) {
+        remote.updateTarget(network.lastRemoteState)
+      }
+      remote.update(dt)
+
+      // ── Apply remote dig events ──────────────────────────────────────────
+      if (terrain && network.pendingDigs.length > 0) {
+        for (const dig of network.pendingDigs) {
+          terrain.dig(dig.x, dig.y, dig.z)
+        }
+        network.pendingDigs.length = 0
       }
     } catch (err) {
       console.error('Render loop error:', err)
@@ -187,16 +224,65 @@ async function startGame() {
   window.addEventListener('resize', () => engine!.resize())
 }
 
-// Start only after a user gesture (button click) — mirrors life_of_squirrel pattern
-// which fixes browsers that refuse WebGL without interaction
-const playBtn = document.getElementById('playBtn')!
-const lobbyEl = document.getElementById('lobby')!
+// Start only after a user gesture (button click)
+const playBtn   = document.getElementById('playBtn')!
+const hostBtn   = document.getElementById('hostBtn')!
+const joinBtn   = document.getElementById('joinBtn')!
+const joinInput = document.getElementById('joinInput') as HTMLInputElement
+const lobbyEl   = document.getElementById('lobby')!
+const lobbyMsg  = document.getElementById('lobbyMsg')!
 
+// Solo play — no networking
 playBtn.addEventListener('click', () => {
   lobbyEl.style.display = 'none'
   startGame().catch(err => {
     const msg = err instanceof Error ? err.message : String(err)
     showStatus(`Startup failed:\n${msg}`, true)
     console.error('startGame failed:', err)
+  })
+})
+
+// Host a room
+hostBtn.addEventListener('click', () => {
+  hostBtn.style.display = 'none'
+  joinBtn.style.display = 'none'
+  joinInput.style.display = 'none'
+  playBtn.style.display = 'none'
+  lobbyMsg.textContent = 'Connecting to signaling server…'
+
+  network.onError = (msg) => { lobbyMsg.textContent = msg; lobbyMsg.style.color = '#f88' }
+
+  network.host((roomId) => {
+    lobbyMsg.innerHTML = `Room code: <b style="color:#6f6;font-size:1.3rem;letter-spacing:0.08em">${roomId}</b><br><br>Share this code with a friend — waiting for them to join…`
+  })
+
+  network.onPeerConnected = () => {
+    lobbyEl.style.display = 'none'
+    startGame().catch(err => {
+      const msg = err instanceof Error ? err.message : String(err)
+      showStatus(`Startup failed:\n${msg}`, true)
+    })
+  }
+})
+
+// Join a room
+joinBtn.addEventListener('click', () => {
+  const code = joinInput.value.trim()
+  if (!code) { joinInput.focus(); return }
+
+  hostBtn.style.display = 'none'
+  joinBtn.style.display = 'none'
+  joinInput.style.display = 'none'
+  playBtn.style.display = 'none'
+  lobbyMsg.textContent = `Joining room "${code}"…`
+
+  network.onError = (msg) => { lobbyMsg.textContent = msg; lobbyMsg.style.color = '#f88' }
+
+  network.join(code, () => {
+    lobbyEl.style.display = 'none'
+    startGame().catch(err => {
+      const msg = err instanceof Error ? err.message : String(err)
+      showStatus(`Startup failed:\n${msg}`, true)
+    })
   })
 })
