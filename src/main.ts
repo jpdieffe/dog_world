@@ -158,9 +158,15 @@ async function startGame() {
   let flagX = 0
   let flagZ = 0
   let roundActive = false
+  let lastRoundStartMs = 0
   const FLAG_REACH = 3.5
 
   function startRound(round: number) {
+    // Debounce — prevent double-triggers when both players detect the same event
+    const now = Date.now()
+    if (now - lastRoundStartMs < 2000) return
+    lastRoundStartMs = now
+
     currentRound = round
     updateRoundHud(round)
 
@@ -198,7 +204,7 @@ async function startGame() {
     flashMessage(`Round ${round} — Reach the red flag!`, 3000)
 
     // Host sends round to joiner so they spawn enemies/flag too
-    if (network.isHost && network.isConnected()) {
+    if (network.isConnected()) {
       network.sendRound(round)
     }
   }
@@ -207,7 +213,7 @@ async function startGame() {
     if (!roundActive) return
     roundActive = false
     flashMessage('Caught! Restarting round…', 2000, '#ff6666')
-    if (network.isConnected() && network.isHost) network.sendCaught()
+    if (network.isConnected()) network.sendCaught()
     setTimeout(() => startRound(currentRound), 2200)
   }
 
@@ -221,6 +227,7 @@ async function startGame() {
   // Start round 1 (host or solo — joiner waits for host's round message)
   if (terrain && player && (network.isHost || !network.isConnected())) {
     hideStatus()
+    lastRoundStartMs = 0 // allow first startRound
     startRound(1)
   } else if (terrain && player) {
     hideStatus()
@@ -282,19 +289,14 @@ async function startGame() {
             : null
           for (const enemy of enemies) {
             const caught = enemy.update(dt, player.position, remoteVec)
-            // Only host/solo triggers catch events
-            if (caught && (network.isHost || !network.isConnected())) {
-              onCaught(); break
-            }
+            if (caught) { onCaught(); break }
           }
 
-          // ── Flag check (host/solo only) ────────────────────────────────────
-          if (network.isHost || !network.isConnected()) {
-            const fdx = player.position.x - flagX
-            const fdz = player.position.z - flagZ
-            if (Math.sqrt(fdx * fdx + fdz * fdz) < FLAG_REACH) {
-              onFlagReached()
-            }
+          // ── Flag check ─────────────────────────────────────────────────────
+          const fdx = player.position.x - flagX
+          const fdz = player.position.z - flagZ
+          if (Math.sqrt(fdx * fdx + fdz * fdz) < FLAG_REACH) {
+            onFlagReached()
           }
         }
       }
@@ -323,7 +325,7 @@ async function startGame() {
         if (roundActive) {
           roundActive = false
           flashMessage('Caught! Restarting round…', 2000, '#ff6666')
-          // Don't call startRound here — host's startRound will send the round message
+          setTimeout(() => startRound(currentRound), 2200)
         }
       }
     } catch (err) {
