@@ -1,0 +1,1 @@
+import{kn as e}from"./index-slfJozIy.js";export{e as defaultVertexShaderWGSL};

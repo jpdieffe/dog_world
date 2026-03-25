@@ -1,0 +1,1 @@
+import{Hn as e}from"./index-slfJozIy.js";export{e as proceduralVertexShaderWGSL};

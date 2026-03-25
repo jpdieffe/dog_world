@@ -7,7 +7,6 @@ import {
   Mesh,
   TransformNode,
 } from '@babylonjs/core'
-import type { Terrain } from './terrain'
 
 /** Seeded PRNG (mulberry32) so levels are reproducible per round */
 function mulberry32(seed: number) {
@@ -22,6 +21,7 @@ function mulberry32(seed: number) {
 export interface WallDef {
   x: number; y: number; z: number
   w: number; h: number; d: number
+  color: 'red' | 'blue'
 }
 
 export interface LevelData {
@@ -79,8 +79,9 @@ export function generateLevel(round: number, worldMinX: number, worldMaxX: numbe
     const w = isLong ? 1.5 + rng() * 2 : 6 + rng() * 14
     const d = isLong ? 6 + rng() * 14 : 1.5 + rng() * 2
     const h = 3 + rng() * 4
+    const color: 'red' | 'blue' = rng() > 0.5 ? 'red' : 'blue'
 
-    walls.push({ x: wx - w / 2, y: 0, z: wz - d / 2, w, h, d })
+    walls.push({ x: wx - w / 2, y: 0, z: wz - d / 2, w, h, d, color })
   }
 
   // Add some building clusters (4 walls around a space)
@@ -94,12 +95,12 @@ export function generateLevel(round: number, worldMinX: number, worldMaxX: numbe
     const bd = 8 + rng() * 6
     const bh = 3 + rng() * 3
     const thick = 1.5
+    const bColor: 'red' | 'blue' = rng() > 0.5 ? 'red' : 'blue'
 
-    // 4 walls with a gap (door) in front wall
-    walls.push({ x: bx, y: 0, z: bz, w: bw, h: bh, d: thick })                       // front
-    walls.push({ x: bx, y: 0, z: bz + bd - thick, w: bw, h: bh, d: thick })           // back
-    walls.push({ x: bx, y: 0, z: bz + thick, w: thick, h: bh, d: bd - thick * 2 })   // left
-    walls.push({ x: bx + bw - thick, y: 0, z: bz + thick, w: thick, h: bh, d: bd - thick * 2 }) // right
+    walls.push({ x: bx, y: 0, z: bz, w: bw, h: bh, d: thick, color: bColor })
+    walls.push({ x: bx, y: 0, z: bz + bd - thick, w: bw, h: bh, d: thick, color: bColor })
+    walls.push({ x: bx, y: 0, z: bz + thick, w: thick, h: bh, d: bd - thick * 2, color: bColor })
+    walls.push({ x: bx + bw - thick, y: 0, z: bz + thick, w: thick, h: bh, d: bd - thick * 2, color: bColor })
   }
 
   // Enemy spawns — scattered around, not near player spawn
@@ -119,13 +120,51 @@ export function generateLevel(round: number, worldMinX: number, worldMaxX: numbe
   return { walls, flagX, flagZ, enemySpawns, playerSpawnX, playerSpawnZ }
 }
 
-/**
- * Inject the walls from a level into the terrain density field.
- */
-export function applyWallsToTerrain(terrain: Terrain, walls: WallDef[]): void {
-  for (const w of walls) {
-    terrain.addBox(w.x, w.y, w.z, w.w, w.h, w.d)
+// Shared materials (created once per scene)
+let redMat: StandardMaterial | null = null
+let blueMat: StandardMaterial | null = null
+
+function getWallMaterial(scene: Scene, color: 'red' | 'blue'): StandardMaterial {
+  if (color === 'red') {
+    if (!redMat || redMat.getScene() !== scene) {
+      redMat = new StandardMaterial('wallRed', scene)
+      redMat.diffuseColor = new Color3(0.75, 0.15, 0.12)
+      redMat.specularColor = new Color3(0.15, 0.05, 0.05)
+    }
+    return redMat
+  } else {
+    if (!blueMat || blueMat.getScene() !== scene) {
+      blueMat = new StandardMaterial('wallBlue', scene)
+      blueMat.diffuseColor = new Color3(0.15, 0.25, 0.75)
+      blueMat.specularColor = new Color3(0.05, 0.05, 0.15)
+    }
+    return blueMat
   }
+}
+
+/**
+ * Create solid box meshes for all walls. Returns array of meshes for disposal.
+ */
+export function createWallMeshes(scene: Scene, walls: WallDef[], getSurfaceY: (x: number, z: number) => number): Mesh[] {
+  const meshes: Mesh[] = []
+  for (let i = 0; i < walls.length; i++) {
+    const w = walls[i]
+    const cx = w.x + w.w / 2
+    const cz = w.z + w.d / 2
+    const surfY = getSurfaceY(cx, cz)
+    const baseY = Math.max(surfY, w.y)
+
+    const box = MeshBuilder.CreateBox(`wall_${i}`, {
+      width: w.w,
+      height: w.h,
+      depth: w.d,
+    }, scene)
+    box.position.set(cx, baseY + w.h / 2, cz)
+    box.material = getWallMaterial(scene, w.color)
+    box.checkCollisions = true
+    meshes.push(box)
+  }
+  return meshes
 }
 
 /**

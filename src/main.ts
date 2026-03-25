@@ -15,7 +15,8 @@ import { Terrain } from './terrain'
 import { Player } from './player'
 import { Network } from './network'
 import { RemotePlayer } from './remote'
-import { generateLevel, applyWallsToTerrain, createFlag } from './level'
+import { generateLevel, createWallMeshes, createFlag } from './level'
+import type { WallDef } from './level'
 import { Enemy } from './enemy'
 
 const canvas = document.getElementById('renderCanvas') as HTMLCanvasElement
@@ -154,6 +155,8 @@ async function startGame() {
   // ── Round / Level state ───────────────────────────────────────────────────
   let currentRound = 1
   let enemies: Enemy[] = []
+  let wallMeshes: Mesh[] = []
+  let wallDefs: WallDef[] = []
   let flagMesh: Mesh | null = null
   let flagX = 0
   let flagZ = 0
@@ -171,14 +174,20 @@ async function startGame() {
     for (const e of enemies) e.dispose()
     enemies = []
 
+    // Dispose old wall meshes
+    for (const m of wallMeshes) m.dispose()
+    wallMeshes = []
+    wallDefs = []
+
     // Dispose old flag
     if (flagMesh) { flagMesh.dispose(); flagMesh = null }
 
     // Generate level
     const level = generateLevel(round, terrain!.worldMinX, terrain!.worldMaxX, terrain!.worldMinZ, terrain!.worldMaxZ)
 
-    // Apply walls
-    applyWallsToTerrain(terrain!, level.walls)
+    // Create wall meshes (red/blue boxes)
+    wallDefs = level.walls
+    wallMeshes = createWallMeshes(scene, level.walls, (x, z) => terrain!.getSurfaceY(x, z))
 
     // Place flag
     flagX = level.flagX
@@ -193,6 +202,7 @@ async function startGame() {
 
     // Reset player position
     if (player) {
+      player.setWalls(wallDefs)
       const spawnY = terrain!.getSurfaceY(level.playerSpawnX, level.playerSpawnZ) + 2
       player.resetPosition(level.playerSpawnX, spawnY, level.playerSpawnZ)
     }
@@ -263,13 +273,24 @@ async function startGame() {
             const cam = player.camera
             const dir = cam.target.subtract(cam.position).normalize()
             const ray = new Ray(cam.position, dir, 20)
-            const hit = scene.pickWithRay(ray, (m: any) => m.name.startsWith('chunk_'))
+            const hit = scene.pickWithRay(ray, (m: any) => m.name.startsWith('chunk_') || m.name.startsWith('wall_'))
             if (hit?.hit && hit.pickedPoint) {
               const pt = hit.pickedPoint
               const normal = hit.getNormal(true)
               if (normal) pt.addInPlace(normal.scale(-0.3))
               terrain.dig(pt.x, pt.y, pt.z)
               network.sendDig({ x: pt.x, y: pt.y, z: pt.z })
+
+              // Destroy wall mesh if hit
+              if (hit.pickedMesh && hit.pickedMesh.name.startsWith('wall_')) {
+                const idx = wallMeshes.indexOf(hit.pickedMesh as Mesh)
+                if (idx >= 0) {
+                  wallMeshes.splice(idx, 1)
+                  wallDefs.splice(idx, 1)
+                  if (player) player.setWalls(wallDefs)
+                }
+                hit.pickedMesh.dispose()
+              }
             }
           }
         } else {
