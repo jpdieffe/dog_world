@@ -186,15 +186,18 @@ export class Player {
     if (this.keys.has('a') || this.keys.has('arrowleft'))  moveX -= 1
     if (this.keys.has('d') || this.keys.has('arrowright')) moveX += 1
 
-    const camAlpha = this.camera.alpha
-    // forward = direction FROM camera position TO player (i.e. camera-facing direction)
-    const forward = new Vector3(-Math.sin(camAlpha), 0, -Math.cos(camAlpha))
-    const right   = new Vector3(Math.cos(camAlpha), 0, -Math.sin(camAlpha))
+    // ── Camera-derived directions ──────────────────────────────────────────
+    // Use actual camera position → target vector so the angle is always exact
+    const camToPlayer = this.camera.target.subtract(this.camera.position)
+    const forward = new Vector3(camToPlayer.x, 0, camToPlayer.z).normalize()
+    const right   = new Vector3(forward.z, 0, -forward.x) // 90° CW in XZ
+
+    // Dog always faces the camera's horizontal direction (every frame)
+    this.facingY = Math.atan2(forward.x, forward.z)
+
     const moveDir = forward.scale(moveZ).add(right.scale(moveX))
     if (moveDir.length() > 0.01) {
       moveDir.normalize()
-      // Always face the camera/mouse direction regardless of strafe input
-      this.facingY = Math.atan2(forward.x, forward.z)
     }
 
     const speed = MOVE_SPEED

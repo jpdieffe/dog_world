@@ -1,0 +1,1 @@
+import{G as e}from"./index-dtPBIeUe.js";export{e as rsmGlobalIlluminationPixelShaderWGSL};
