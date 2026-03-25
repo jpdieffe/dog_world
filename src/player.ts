@@ -229,22 +229,18 @@ export class Player {
     // ── Terrain collision ──────────────────────────────────────────────────
     this.onGround = false
 
-    // Check if player's feet are currently in air or solid
-    const feetInSolid = this.terrain.isSolid(this.position.x, this.position.y, this.position.z)
-
     // Find the nearest solid surface below the player's current Y
     const surfaceY = this.terrain.getSurfaceYBelow(this.position.x, this.position.z, this.position.y + 1)
 
-    if (!feetInSolid && this.position.y <= surfaceY + 0.05 && this.velocity.y <= 0) {
+    if (this.position.y <= surfaceY + 0.1 && this.velocity.y <= 0) {
       // Landing on a surface below us (works for tunnel floors too)
-      this.position.y = surfaceY + 0.05
+      this.position.y = surfaceY + 0.1
       this.velocity.y = 0
       this.onGround = true
     }
 
-    // If body centre is inside solid terrain, nudge outward
+    // If body centre is inside solid terrain, nudge upward
     if (this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT * 0.5, this.position.z)) {
-      // Try nudging up first (most common: clipping through floor)
       if (!this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT, this.position.z)) {
         this.position.y += 0.3
       }
