@@ -239,6 +239,11 @@ export class Player {
       this.onGround = true
     }
 
+    // Ceiling check: if head hits solid terrain above, kill upward velocity
+    if (this.velocity.y > 0 && this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT, this.position.z)) {
+      this.velocity.y = 0
+    }
+
     // If body centre is inside solid terrain, nudge upward
     if (this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT * 0.5, this.position.z)) {
       if (!this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT, this.position.z)) {
