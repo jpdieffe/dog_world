@@ -252,6 +252,11 @@ export class Player {
       this.velocity.setAll(0)
     }
 
+    // Clamp to world horizontal bounds so the player can't walk off the edge
+    const margin = 0.5
+    this.position.x = Math.max(this.terrain.worldMinX + margin, Math.min(this.terrain.worldMaxX - margin, this.position.x))
+    this.position.z = Math.max(this.terrain.worldMinZ + margin, Math.min(this.terrain.worldMaxZ - margin, this.position.z))
+
     // ── Animation state ────────────────────────────────────────────────────
     const moving = Math.abs(moveDir.x) > 0.1 || Math.abs(moveDir.z) > 0.1
     if (!this.onGround) {

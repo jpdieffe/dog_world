@@ -112,7 +112,7 @@ export class Terrain {
     const cz = Math.floor((worldZ - this.worldMinZ) / CHUNK_SIZE)
     const key = `${cx},${cz}`
     const chunk = this.chunks.get(key)
-    if (!chunk) return 0
+    if (!chunk) return -Infinity  // off-map: never trigger landing
 
     return chunk.getSurfaceYBelow(worldX, worldZ, startY)
   }
