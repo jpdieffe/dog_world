@@ -104,6 +104,20 @@ export class Terrain {
   }
 
   /**
+   * Get the surface Y at (x,z) scanning downward from startY.
+   * Returns the first solid-to-air boundary at or below startY.
+   */
+  getSurfaceYBelow(worldX: number, worldZ: number, startY: number): number {
+    const cx = Math.floor((worldX - this.worldMinX) / CHUNK_SIZE)
+    const cz = Math.floor((worldZ - this.worldMinZ) / CHUNK_SIZE)
+    const key = `${cx},${cz}`
+    const chunk = this.chunks.get(key)
+    if (!chunk) return 0
+
+    return chunk.getSurfaceYBelow(worldX, worldZ, startY)
+  }
+
+  /**
    * Check if a position is inside solid terrain.
    */
   isSolid(worldX: number, worldY: number, worldZ: number): boolean {
@@ -252,6 +266,28 @@ class TerrainChunk {
 
     // Scan from top to bottom, find the first solid cell
     for (let y = VERT_SAMPLES - 1; y >= 0; y--) {
+      if (this.density[this.idx(gx, y, gz)] > 0) {
+        return this.originY + y * CELL_SIZE
+      }
+    }
+    return this.originY
+  }
+
+  /**
+   * Find the first solid surface at or below startY.
+   * Scans downward from startY so tunnels beneath higher terrain are respected.
+   */
+  getSurfaceYBelow(wx: number, wz: number, startY: number): number {
+    const gx = Math.round((wx - this.originX) / CELL_SIZE)
+    const gz = Math.round((wz - this.originZ) / CELL_SIZE)
+
+    if (gx < 0 || gx >= CHUNK_SAMPLES || gz < 0 || gz >= CHUNK_SAMPLES) return this.originY
+
+    // Convert startY to grid Y index
+    const startGy = Math.min(VERT_SAMPLES - 1, Math.round((startY - this.originY) / CELL_SIZE))
+
+    // Scan downward: find an air→solid transition (top of solid below player)
+    for (let y = startGy; y >= 0; y--) {
       if (this.density[this.idx(gx, y, gz)] > 0) {
         return this.originY + y * CELL_SIZE
       }
