@@ -228,10 +228,13 @@ export class Player {
     // ── Terrain collision ──────────────────────────────────────────────────
     this.onGround = false
 
-    // Find the nearest solid surface below the player's current Y
-    const surfaceY = this.terrain.getSurfaceYBelow(this.position.x, this.position.z, this.position.y + 1)
+    // Check if player feet are inside solid terrain
+    const feetSolid = this.terrain.isSolid(this.position.x, this.position.y + 0.05, this.position.z)
 
-    if (this.position.y <= surfaceY + 0.1 && this.velocity.y <= 0) {
+    // Find the nearest solid surface below the player's feet
+    const surfaceY = this.terrain.getSurfaceYBelow(this.position.x, this.position.z, this.position.y)
+
+    if (!feetSolid && this.position.y <= surfaceY + 0.1 && this.velocity.y <= 0) {
       // Landing on a surface below us (works for tunnel floors too)
       this.position.y = surfaceY + 0.1
       this.velocity.y = 0
@@ -243,10 +246,23 @@ export class Player {
       this.velocity.y = 0
     }
 
-    // If body centre is inside solid terrain, nudge upward
-    if (this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT * 0.5, this.position.z)) {
-      if (!this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT, this.position.z)) {
-        this.position.y += 0.3
+    // If feet are stuck inside solid terrain, push back along horizontal movement
+    // instead of popping up to the surface
+    if (feetSolid) {
+      // Try to push back to previous position horizontally
+      const prevX = this.position.x - this.velocity.x * dt
+      const prevZ = this.position.z - this.velocity.z * dt
+      if (!this.terrain.isSolid(prevX, this.position.y + 0.05, prevZ)) {
+        this.position.x = prevX
+        this.position.z = prevZ
+        this.velocity.x = 0
+        this.velocity.z = 0
+      } else {
+        // Can't push back — small upward nudge only if nearby air exists
+        const checkAbove = this.position.y + 0.5
+        if (!this.terrain.isSolid(this.position.x, checkAbove, this.position.z)) {
+          this.position.y += 0.15
+        }
       }
     }
 

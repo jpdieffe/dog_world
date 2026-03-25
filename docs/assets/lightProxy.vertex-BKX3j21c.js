@@ -1,0 +1,1 @@
+import{Zn as e}from"./index-DTSXDNy4.js";export{e as lightProxyVertexShaderWGSL};
