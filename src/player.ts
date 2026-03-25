@@ -220,21 +220,37 @@ export class Player {
     this.velocity.y += GRAVITY * dt
     if (this.velocity.y < TERMINAL_VEL) this.velocity.y = TERMINAL_VEL
 
-    // ── Move position ──────────────────────────────────────────────────────
-    this.position.x += this.velocity.x * dt
+    // ── Move position (split axes to prevent entering solid terrain) ───────
+    // Apply Y first (gravity / jump)
     this.position.y += this.velocity.y * dt
-    this.position.z += this.velocity.z * dt
+
+    // Apply X — check at feet and mid-body before committing
+    const newX = this.position.x + this.velocity.x * dt
+    const solidAtFeetX = this.terrain.isSolid(newX, this.position.y + 0.15, this.position.z)
+    const solidAtMidX  = this.terrain.isSolid(newX, this.position.y + PLAYER_HEIGHT * 0.5, this.position.z)
+    if (!solidAtFeetX && !solidAtMidX) {
+      this.position.x = newX
+    } else {
+      this.velocity.x = 0
+    }
+
+    // Apply Z — check at feet and mid-body before committing
+    const newZ = this.position.z + this.velocity.z * dt
+    const solidAtFeetZ = this.terrain.isSolid(this.position.x, this.position.y + 0.15, newZ)
+    const solidAtMidZ  = this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT * 0.5, newZ)
+    if (!solidAtFeetZ && !solidAtMidZ) {
+      this.position.z = newZ
+    } else {
+      this.velocity.z = 0
+    }
 
     // ── Terrain collision ──────────────────────────────────────────────────
     this.onGround = false
 
-    // Check if player feet are inside solid terrain
-    const feetSolid = this.terrain.isSolid(this.position.x, this.position.y + 0.05, this.position.z)
-
     // Find the nearest solid surface below the player's feet
     const surfaceY = this.terrain.getSurfaceYBelow(this.position.x, this.position.z, this.position.y)
 
-    if (!feetSolid && this.position.y <= surfaceY + 0.1 && this.velocity.y <= 0) {
+    if (this.position.y <= surfaceY + 0.1 && this.velocity.y <= 0) {
       // Landing on a surface below us (works for tunnel floors too)
       this.position.y = surfaceY + 0.1
       this.velocity.y = 0
@@ -244,26 +260,6 @@ export class Player {
     // Ceiling check: if head hits solid terrain above, kill upward velocity
     if (this.velocity.y > 0 && this.terrain.isSolid(this.position.x, this.position.y + PLAYER_HEIGHT, this.position.z)) {
       this.velocity.y = 0
-    }
-
-    // If feet are stuck inside solid terrain, push back along horizontal movement
-    // instead of popping up to the surface
-    if (feetSolid) {
-      // Try to push back to previous position horizontally
-      const prevX = this.position.x - this.velocity.x * dt
-      const prevZ = this.position.z - this.velocity.z * dt
-      if (!this.terrain.isSolid(prevX, this.position.y + 0.05, prevZ)) {
-        this.position.x = prevX
-        this.position.z = prevZ
-        this.velocity.x = 0
-        this.velocity.z = 0
-      } else {
-        // Can't push back — small upward nudge only if nearby air exists
-        const checkAbove = this.position.y + 0.5
-        if (!this.terrain.isSolid(this.position.x, checkAbove, this.position.z)) {
-          this.position.y += 0.15
-        }
-      }
     }
 
     // World floor (bottom of terrain grid)
