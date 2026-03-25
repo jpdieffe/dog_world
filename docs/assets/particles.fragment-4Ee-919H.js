@@ -1,1 +1,0 @@
-import{vn as e}from"./index-BOReXXoO.js";export{e as particlesPixelShaderWGSL};

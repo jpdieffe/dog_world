@@ -1,1 +1,0 @@
-import{jr as e}from"./index-BOReXXoO.js";export{e as PBRMaterial};

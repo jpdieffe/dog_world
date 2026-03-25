@@ -193,7 +193,8 @@ export class Player {
     const moveDir = forward.scale(moveZ).add(right.scale(moveX))
     if (moveDir.length() > 0.01) {
       moveDir.normalize()
-      this.facingY = Math.atan2(moveDir.x, moveDir.z)
+      // Always face the camera/mouse direction regardless of strafe input
+      this.facingY = Math.atan2(forward.x, forward.z)
     }
 
     const speed = MOVE_SPEED
